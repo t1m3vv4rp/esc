@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Claude</title>
+<style>
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:#000; overflow:hidden;
+    font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; }
+
+  #claudeUI{
+    position:fixed; inset:0; background:#262624; display:flex; flex-direction:column;
+    opacity:0; transition:opacity 1.6s ease;
+  }
+  #claudeUI.on{ opacity:1; }
+  .c-top{
+    height:46px; display:flex; align-items:center; padding:0 18px; gap:10px;
+    border-bottom:1px solid #3a3a37; flex-shrink:0;
+  }
+  .c-top .logo{ width:22px; height:22px; border-radius:6px; background:#d97757;
+    display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:700; }
+  .c-top .tt{ color:#e8e6e1; font-size:13.5px; font-weight:500; }
+  .c-scroll{ flex:1; overflow-y:auto; }
+  .c-inner{ max-width:680px; margin:0 auto; padding:36px 22px 24px; }
+  .turn{ margin-bottom:26px; opacity:0; transform:translateY(8px); transition:opacity 0.5s, transform 0.5s; }
+  .turn.on{ opacity:1; transform:none; }
+  .turn .who{ font-size:12px; color:#9a988f; margin-bottom:7px; display:flex; align-items:center; gap:7px; }
+  .turn .who .av{ width:20px; height:20px; border-radius:50%; }
+  .turn.user .who .av{ background:url(assets/profiles/yujin.png) center/cover; border-radius:5px; }
+  .turn.ai .who .av{ background:#d97757; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; font-weight:700; }
+  .turn .bubble{
+    font-size:14.5px; line-height:1.85; color:#e8e6e1;
+  }
+  .turn.user .bubble{
+    background:#3a3a37; border-radius:14px; padding:12px 16px; display:inline-block;
+  }
+  .c-inputwrap{ padding:14px 22px 22px; flex-shrink:0; }
+  .c-input{
+    max-width:680px; margin:0 auto; background:#30302e; border:1px solid #47463f;
+    border-radius:14px; padding:14px 16px; font-size:14px; color:#b9b7ae; min-height:52px;
+    display:flex; align-items:center;
+  }
+  .c-input .caret{ display:inline-block; width:1.5px; height:17px; background:#d97757; margin-left:1px; animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* 엔딩 카드 */
+  #ending{
+    position:fixed; inset:0; background:#000; z-index:50; display:flex;
+    align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 2.2s ease;
+    flex-direction:column; gap:26px; text-align:center;
+  }
+  #ending.on{ opacity:1; pointer-events:auto; }
+  #endText{
+    color:#c9c5bc; font-size:15px; line-height:2.6; letter-spacing:0.04em;
+    max-width:560px; padding:0 26px; opacity:0; transition:opacity 2s;
+  }
+  #endTitle{
+    color:#7a1017; font-size:17px; letter-spacing:0.55em; font-weight:600;
+    opacity:0; transition:opacity 2.5s; text-indent:0.55em;
+    font-family:Georgia,serif;
+  }
+  #endSub{ color:#3f3f44; font-size:10.5px; letter-spacing:0.3em; opacity:0; transition:opacity 2s; }
+  #crt{
+    position:fixed; inset:0; pointer-events:none; z-index:90;
+    background:
+      radial-gradient(ellipse at center, transparent 62%, rgba(0,0,0,0.5) 100%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.09) 0, rgba(0,0,0,0.09) 1px, transparent 2px, transparent 4px);
+    mix-blend-mode:multiply;
+  }
+</style>
+</head>
+<body>
+
+<div id="claudeUI">
+  <div class="c-top"><div class="logo">C</div><div class="tt">Claude</div></div>
+  <div class="c-scroll"><div class="c-inner" id="cInner"></div></div>
+  <div class="c-inputwrap"><div class="c-input" id="cInput"><span id="cDraft"></span><span class="caret"></span></div></div>
+</div>
+
+<div id="ending">
+  <div id="endText"></div>
+  <div id="endTitle">NOSTALGIA VISTA</div>
+  <div id="endSub">STORYLAB · 2026</div>
+</div>
+<div id="crt"></div>
+
+<script src="telemetry.js"></script>
+<script>
+const sleep = ms=>new Promise(r=>setTimeout(r,ms));
+const inner = document.getElementById("cInner");
+const draft = document.getElementById("cDraft");
+
+function addTurn(who, text){
+  const t=document.createElement("div");
+  t.className="turn "+(who==="user"?"user":"ai");
+  t.innerHTML=`<div class="who"><span class="av">${who==="ai"?"C":""}</span>${who==="user"?"김유진":"Claude"}</div>
+    <div class="bubble">${text}</div>`;
+  inner.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add("on"));
+  document.querySelector(".c-scroll").scrollTop=1e9;
+  return t;
+}
+async function typeDraft(text, speed=70){
+  for(const ch of text){ draft.textContent+=ch; await sleep(speed); }
+}
+async function eraseDraft(speed=32){
+  while(draft.textContent.length){ draft.textContent=draft.textContent.slice(0,-1); await sleep(speed); }
+}
+
+async function run(){
+  nvlog("ending_reached", {});
+  await sleep(2200);   // 3D 암전 여운
+  document.getElementById("claudeUI").classList.add("on");
+  await sleep(1600);
+
+  await typeDraft("이런 연출로 끝나는 건 어떨까?");
+  await sleep(500); draft.textContent="";
+  addTurn("user","이런 연출로 끝나는 건 어떨까?");
+  await sleep(1700);
+
+  await typeDraft("너무 기분만 나쁘게 끝나는 건 아니야? 재미없이 그냥 겁주려고 만든 느낌인데", 46);
+  await sleep(450); draft.textContent="";
+  addTurn("user","너무 기분만 나쁘게 끝나는 건 아니야? 재미없이 그냥 겁주려고 만든 느낌인데");
+  await sleep(1900);
+
+  addTurn("ai","그럴 순 있겠으나 이게 당신의 한계인걸요.");
+  await sleep(2400);
+
+  // 썼다 지웠다
+  await typeDraft("뭐라는 거야", 80); await sleep(700); await eraseDraft();
+  await sleep(600);
+  await typeDraft("아니 근데 진짜 너무 낫낫하게", 62); await sleep(900); await eraseDraft();
+  await sleep(800);
+  await typeDraft("하긴", 110); await sleep(1100); await eraseDraft();
+  await sleep(900);
+
+  await typeDraft("그래도 4층 귀신 얘기를 사용하진 않았으니까. 그건 진짜라서 좀 무섭잖아.", 48);
+  await sleep(600); draft.textContent="";
+  addTurn("user","그래도 4층 귀신 얘기를 사용하진 않았으니까. 그건 진짜라서 좀 무섭잖아.");
+  await sleep(2300);
+
+  addTurn("ai","네. 아무에게도 말하지 않는 게 좋겠어요.");
+  await sleep(3400);
+
+  // 엔딩 카드
+  document.getElementById("ending").classList.add("on");
+  await sleep(2300);
+  const endText=document.getElementById("endText");
+  const LINES = [
+    "이상하지.",
+    "눈을 감으면 자꾸 그 공간이 떠오른다.",
+    "비닐이 덮인 가구들. 젖은 바닥. 붉게 깜빡이던 불.",
+    "꺼림칙한데,",
+    "…한 번만 더 가보고 싶다.",
+  ];
+  for(const l of LINES){
+    endText.innerHTML += l+"<br>";
+    endText.style.opacity=1;
+    await sleep(2100);
+  }
+  await sleep(1600);
+  document.getElementById("endTitle").style.opacity=1;
+  await sleep(2000);
+  document.getElementById("endSub").style.opacity=1;
+}
+run();
+</script>
+</body>
+</html>

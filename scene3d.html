@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>norstalgia — 3F</title>
+<style>
+  /* ============ 기본 ============ */
+  html, body { margin:0; padding:0; background:#000; overflow:hidden; height:100%; }
+  #game {
+    position:fixed; inset:0;
+    image-rendering: pixelated;   /* 저해상도 캔버스를 픽셀 그대로 확대 */
+  }
+  canvas { width:100%; height:100%; display:block; image-rendering: pixelated; }
+
+  /* ============ CRT/비네트 오버레이 ============ */
+  #crt {
+    position:fixed; inset:0; pointer-events:none; z-index:5;
+    background:
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0px, rgba(0,0,0,0.16) 1px, transparent 2px, transparent 4px);
+    mix-blend-mode: multiply;
+  }
+
+  /* ============ 대사 UI ============ */
+  #dialog {
+    position:fixed; left:50%; bottom:7vh; transform:translateX(-50%);
+    max-width:640px; width:calc(100% - 48px);
+    padding:18px 26px; z-index:10; display:none;
+    font-family:"Courier New", monospace;
+    font-size:17px; line-height:2;
+    letter-spacing:0.06em;
+    text-align:center;
+    user-select:none;
+  }
+  /* 존재 글씨체: 검은 배경 + 빨간 테두리 + 글리치 */
+  #dialog.entity {
+    background:rgba(0,0,0,0.88);
+    border:1px solid #c1121f;
+    color:#d8d8d8;
+    box-shadow:0 0 22px rgba(193,18,31,0.28), inset 0 0 14px rgba(193,18,31,0.12);
+    animation: entityJitter 0.14s infinite steps(2);
+  }
+  #dialog.entity .txt { text-shadow:1px 0 rgba(193,18,31,0.7), -1px 0 rgba(40,140,160,0.35); }
+  @keyframes entityJitter {
+    0%   { transform:translateX(-50%) translateY(0); }
+    50%  { transform:translateX(calc(-50% + 1px)) translateY(-1px); }
+    100% { transform:translateX(-50%) translateY(0); }
+  }
+  /* 플레이어 글씨체: 흰 말풍선 + 검은 글씨 */
+  #dialog.player {
+    background:#f4f4f2;
+    border:1px solid #111;
+    color:#111;
+    border-radius:10px;
+    box-shadow:0 4px 0 rgba(0,0,0,0.55);
+    animation:none;
+  }
+  #dialog .hint {
+    display:block; margin-top:8px; font-size:11px; opacity:0.55; letter-spacing:0.2em;
+  }
+
+  /* ============ 시작 오버레이 ============ */
+  #startOverlay {
+    position:fixed; inset:0; z-index:20;
+    background:#000; color:#9a9a9a;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    font-family:"Courier New", monospace; letter-spacing:0.14em; cursor:pointer;
+  }
+  #startOverlay .t1 { font-size:14px; color:#c1121f; }
+  #startOverlay .t2 { font-size:12px; opacity:0.75; line-height:2.2; text-align:center; }
+
+  /* ============ 암전/플래시 ============ */
+  #fade {
+    position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; z-index:15;
+    transition:opacity 1.2s ease;
+  }
+  #redflash {
+    position:fixed; inset:0; background:rgba(160,10,20,0.35); opacity:0; pointer-events:none; z-index:14;
+  }
+
+  /* ============ 엔딩 카드 (임시) ============ */
+  #endcard {
+    position:fixed; inset:0; z-index:30; background:#000; display:none;
+    align-items:center; justify-content:center; flex-direction:column; gap:16px;
+    color:#777; font-family:"Courier New", monospace; letter-spacing:0.2em; font-size:13px;
+  }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="crt"></div>
+<div id="fade"></div>
+<div id="redflash"></div>
+
+<div id="dialog"><span class="txt"></span><span class="hint">[ SPACE ]</span></div>
+
+<div id="startOverlay">
+  <div class="t1">3F — STORYLAB</div>
+  <div class="t2">클릭하여 들어가기<br><br>이동: W A S D &nbsp;/&nbsp; 시점: 마우스 &nbsp;/&nbsp; 대사 진행: SPACE</div>
+</div>
+
+<div id="endcard">
+  <div>( 이후 — 엔딩 화면으로 이어집니다 )</div>
+  <div style="font-size:11px; opacity:0.5">프로토타입 끝</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ==================================================================
+   노스텔지아 비스타 — 클라이맥스 3D 공간 프로토타입
+   동선: 입구(6번 커튼) → 넓은 방(7번) → 책장 복도(1·2번)
+        → 개방 공간(3번 창문, 컷씬) → 왼쪽 어두운 방(4·5번, 존재)
+   ================================================================== */
+
+// ---------- 기본 설정 ----------
+const PIXEL_SCALE = 0.28;      // 렌더 해상도 비율 (낮을수록 도트 느낌)
+const WALK_SPEED  = 1.15;      // 매우 느린 이동속도 (m/s)
+const EYE_H       = 1.6;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x020202);
+scene.fog = new THREE.FogExp2(0x020202, 0.10);
+
+const camera = new THREE.PerspectiveCamera(68, innerWidth/innerHeight, 0.05, 60);
+const renderer = new THREE.WebGLRenderer({ antialias:false });
+renderer.setPixelRatio(1);
+renderer.setSize(innerWidth*PIXEL_SCALE, innerHeight*PIXEL_SCALE, false);
+renderer.domElement.style.width = "100%";
+renderer.domElement.style.height = "100%";
+document.getElementById("game").appendChild(renderer.domElement);
+
+addEventListener("resize", ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth*PIXEL_SCALE, innerHeight*PIXEL_SCALE, false);
+});
+
+// ---------- 조명: 핸드폰 손전등 ----------
+scene.add(new THREE.AmbientLight(0x0a0a0c, 0.5));
+const flash = new THREE.SpotLight(0xfff2d8, 1.35, 18, Math.PI/7.5, 0.55, 1.6);
+flash.position.set(0,0,0);
+const flashTarget = new THREE.Object3D();
+scene.add(flash, flashTarget);
+flash.target = flashTarget;
+
+// ---------- 텍스처 ----------
+const texLoader = new THREE.TextureLoader();
+function loadTex(p){
+  const t = texLoader.load(p);
+  t.magFilter = THREE.NearestFilter;   // 픽셀 유지
+  t.minFilter = THREE.NearestFilter;
+  return t;
+}
+const T = {
+  p1: loadTex("assets/textures/photo1_bookshelf.jpg"),
+  p2: loadTex("assets/textures/photo2_shelf_stool.jpg"),
+  p3: loadTex("assets/textures/photo3_open_window.jpg"),
+  p4: loadTex("assets/textures/photo4_dark_corner.jpg"),
+  p5: loadTex("assets/textures/photo5_dark_room.jpg"),
+  p6: loadTex("assets/textures/photo6_entrance.jpg"),
+  p7: loadTex("assets/textures/photo7_big_room.jpg"),
+};
+
+// ---------- 재질 ----------
+const matFloor = new THREE.MeshPhongMaterial({ color:0x17171a, shininess:8 });
+const matWall  = new THREE.MeshPhongMaterial({ color:0x232326, shininess:4 });
+const matCeil  = new THREE.MeshPhongMaterial({ color:0x101012, shininess:2 });
+const matWater = new THREE.MeshPhongMaterial({ color:0x020204, shininess:140, specular:0x223344 });
+
+// ---------- 공간(방) 정의: AABB [x1,x2,z1,z2]  (z는 북쪽으로 갈수록 음수) ----------
+// 좁은 통로가 넓은 방 안쪽으로 살짝 겹쳐 들어가는 구조 (벽 뚫림 방지)
+const ROOMS = [
+  { id:"A",     x1:-2,   x2:2,    z1:-7.0,  z2: 2   },  // 입구 복도 (B로 1m 연장)
+  { id:"B",     x1:-6,   x2:6,    z1:-18.0, z2:-5.8 },  // 넓은 방 (7번)
+  { id:"C",     x1:-2,   x2:2,    z1:-31.0, z2:-17.0},  // 책장 복도 (양쪽으로 연장)
+  { id:"D",     x1:-6,   x2:6,    z1:-40,   z2:-30  },  // 개방 공간 (3번 창문)
+  { id:"Edoor", x1:-7.0, x2:-5.3, z1:-37.2, z2:-33.0},  // D↔E 개구부
+  { id:"E",     x1:-16,  x2:-6.3, z1:-40,   z2:-30  },  // 존재의 방 (4·5번)
+];
+const CEIL_H = 3.0;
+
+// 방마다 바닥/천장/벽 생성 (문/개구부는 대충 이어지도록 벽을 나눠 배치)
+function box(w,h,d, mat, x,y,z){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(x,y,z); scene.add(m); return m;
+}
+function floorCeil(r, floorMat){
+  const w = r.x2-r.x1, d = r.z2-r.z1, cx=(r.x1+r.x2)/2, cz=(r.z1+r.z2)/2;
+  box(w,0.1,d, floorMat, cx,-0.05,cz);
+  box(w,0.1,d, matCeil,  cx, CEIL_H+0.05, cz);
+}
+ROOMS.forEach(r=>{
+  floorCeil(r, (r.id==="E"||r.id==="Edoor") ? matWater : matFloor); // 존재의 방: 검은 물 바닥
+});
+
+// 벽 (수동 배치 — 개구부 남기기)
+const W = 0.12;
+// A 복도 양옆
+box(W, CEIL_H, 8.2, matWall, -2, CEIL_H/2, -2.1);
+box(W, CEIL_H, 8.2, matWall,  2, CEIL_H/2, -2.1);
+box(4, CEIL_H, W, matWall, 0, CEIL_H/2, 2); // 뒤쪽 막기
+// B 방
+box(W, CEIL_H, 12.2, matWall, -6, CEIL_H/2, -11.9);
+box(W, CEIL_H, 12.2, matWall,  6, CEIL_H/2, -11.9);
+box(4.05, CEIL_H, W, matWall, -4, CEIL_H/2, -6);   // A와 만나는 남벽(개구부 좌)
+box(4.05, CEIL_H, W, matWall,  4, CEIL_H/2, -6);   // (개구부 우)
+box(4.05, CEIL_H, W, matWall, -4, CEIL_H/2, -18);  // C로 가는 북벽(개구부 좌)
+box(4.05, CEIL_H, W, matWall,  4, CEIL_H/2, -18);
+// C 복도
+box(W, CEIL_H, 12.4, matWall, -2, CEIL_H/2, -23.9);
+box(W, CEIL_H, 12.4, matWall,  2, CEIL_H/2, -23.9);
+// D 방
+box(W, CEIL_H, 3.2, matWall,  -6, CEIL_H/2, -31.4); // 서벽 상단(개구부 위쪽)
+box(W, CEIL_H, 3.2, matWall,  -6, CEIL_H/2, -38.6); // 서벽 하단(개구부 아래쪽)
+box(W, CEIL_H, 10.4, matWall,  6, CEIL_H/2, -34.9);
+box(4.05, CEIL_H, W, matWall, -4, CEIL_H/2, -30);
+box(4.05, CEIL_H, W, matWall,  4, CEIL_H/2, -30);
+box(12.2, CEIL_H, W, matWall, 0, CEIL_H/2, -40);   // 북벽(창문 벽)
+// E 방 (존재)
+box(10.4, CEIL_H, W, matWall, -11, CEIL_H/2, -30);
+box(10.4, CEIL_H, W, matWall, -11, CEIL_H/2, -40);
+box(W, CEIL_H, 10.2, matWall, -16, CEIL_H/2, -35);
+
+// ---------- 사진 패널 (벽에 걸린 픽셀화 실사) ----------
+function photoPanel(tex, w, h, x, y, z, ry){
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshPhongMaterial({ map:tex, shininess:3 })
+  );
+  m.position.set(x,y,z); m.rotation.y = ry; scene.add(m); return m;
+}
+// 6번: 입구 커튼 (통과 가능한 반투명 막)
+const curtain = new THREE.Mesh(
+  new THREE.PlaneGeometry(3.9, CEIL_H),
+  new THREE.MeshPhongMaterial({ map:T.p6, transparent:true, opacity:0.96, side:THREE.DoubleSide })
+);
+curtain.position.set(0, CEIL_H/2, -6); scene.add(curtain);
+// 7번: 넓은 방 벽면
+photoPanel(T.p7, 3.4, 2.6, -5.93, 1.5, -12, Math.PI/2);
+photoPanel(T.p7, 3.4, 2.6,  5.93, 1.5, -10, -Math.PI/2);
+// 1·2번: 책장 복도 양쪽
+photoPanel(T.p1, 2.6, 2.7, -1.93, 1.5, -21, Math.PI/2);
+photoPanel(T.p2, 2.6, 2.7,  1.93, 1.5, -24, -Math.PI/2);
+photoPanel(T.p1, 2.6, 2.7, -1.93, 1.5, -27, Math.PI/2);
+// 3번: 개방 공간 북벽 = "창문"
+const windowPanel = photoPanel(T.p3, 4.4, 2.7, 0, 1.5, -39.9, 0);
+// 4·5번: 존재의 방
+photoPanel(T.p4, 3.2, 2.7, -15.9, 1.5, -37, Math.PI/2);
+photoPanel(T.p5, 3.4, 2.7, -13, 1.5, -39.9, 0);
+
+// ---------- 검은 물 흔적 ----------
+function puddle(x,z,r){
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r, 14), matWater);
+  m.rotation.x = -Math.PI/2; m.position.set(x, 0.011, z); scene.add(m); return m;
+}
+puddle(-7.5,-33.5,0.8); puddle(-9,-36,1.3); puddle(-12,-34,1.0); puddle(-14,-38,1.6);
+puddle(-3,-35,0.5);
+// 벽 물줄기 (존재의 방)
+function streak(x,y,z,ry,w,h){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h), matWater);
+  m.position.set(x,y,z); m.rotation.y = ry; scene.add(m);
+}
+streak(-15.88, 1.4, -35, Math.PI/2, 0.35, 2.8);
+streak(-12,  1.2, -39.88, 0, 0.5, 2.4);
+streak(-8,   1.5, -39.88, 0, 0.25, 3.0);
+
+// 컷씬용: 왼쪽에서 흘러오는 물줄기 (개방 공간 바닥, 처음엔 안 보임)
+const streamMat = matWater.clone();
+const stream = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.34), streamMat);
+stream.rotation.x = -Math.PI/2;
+stream.position.set(-6, 0.012, -35);
+stream.scale.set(0.01,1,1);
+stream.visible = false;
+scene.add(stream);
+
+// ---------- 존재 (발만 보이는 실루엣) ----------
+const entity = new THREE.Group();
+const legMat = new THREE.MeshPhongMaterial({ color:0x050507, shininess:60, specular:0x1a2230 });
+const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,0.9,6), legMat);
+const legR = legL.clone();
+legL.position.set(-0.13,0.45,0); legR.position.set(0.13,0.45,0);
+entity.add(legL, legR);
+entity.position.set(-14.5, 0, -38.5);   // 존재의 방 가장 안쪽
+scene.add(entity);
+
+// ---------- 먼지 입자 ----------
+const dustGeo = new THREE.BufferGeometry();
+const DUST_N = 420;
+const dustPos = new Float32Array(DUST_N*3);
+for(let i=0;i<DUST_N;i++){
+  dustPos[i*3]   = -16 + Math.random()*22;
+  dustPos[i*3+1] = Math.random()*CEIL_H;
+  dustPos[i*3+2] = -40 + Math.random()*42;
+}
+dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos,3));
+const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+  color:0xd9d4c8, size:0.035, transparent:true, opacity:0.65, sizeAttenuation:true
+}));
+scene.add(dust);
+
+// ---------- 플레이어 상태 ----------
+const player = { x:0, z:1.2, yaw:0, pitch:0 };  // yaw=0 → -z(북쪽) 바라봄
+let controlLocked = true;   // 대사/컷씬 중 이동 금지
+const keys = {};
+addEventListener("keydown", e=>{ keys[e.code]=true; if(e.code==="Space") advanceDialog(); });
+addEventListener("keyup",   e=>{ keys[e.code]=false; });
+
+// 포인터 락 + 마우스 시점
+const startOverlay = document.getElementById("startOverlay");
+startOverlay.addEventListener("click", ()=>{
+  document.body.requestPointerLock();
+});
+document.addEventListener("pointerlockchange", ()=>{
+  if(document.pointerLockElement){
+    startOverlay.style.display="none";
+    if(!started){ started=true; beginScene(); }
+  }
+});
+document.addEventListener("mousemove", e=>{
+  if(!document.pointerLockElement || cutscene.active) return;
+  player.yaw   -= e.movementX*0.0021;
+  player.pitch -= e.movementY*0.0021;
+  player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch));
+});
+
+// ---------- 충돌 (방 AABB 안에서만 이동) ----------
+function insideAnyRoom(x,z){
+  const M = 0.25;
+  return ROOMS.some(r => x>r.x1+M && x<r.x2-M && z>r.z1+M && z<r.z2-M);
+}
+
+// ---------- 대사 시스템 ----------
+const dialogEl = document.getElementById("dialog");
+const dialogTxt = dialogEl.querySelector(".txt");
+let dialogQueue = [];      // {who:"entity"|"player", text, onDone}
+let dialogActive = false;
+
+function showDialog(lines, onAllDone){
+  dialogQueue = lines.map(l=>({...l}));
+  dialogQueue._onAllDone = onAllDone || null;
+  dialogActive = true;
+  controlLocked = true;
+  nextDialogLine();
+}
+function nextDialogLine(){
+  const line = dialogQueue.shift();
+  if(!line){
+    dialogEl.style.display="none";
+    dialogActive = false;
+    const cb = dialogQueue._onAllDone;
+    dialogQueue._onAllDone = null;
+    if(cb) cb(); else controlLocked = false;
+    return;
+  }
+  dialogEl.className = line.who;
+  dialogTxt.textContent = line.text;
+  dialogEl.style.display = "block";
+  if(line.onShow) line.onShow();
+}
+function advanceDialog(){
+  if(dialogActive) nextDialogLine();
+}
+
+// ---------- 컷씬 (카메라 연출) ----------
+const cutscene = { active:false, t:0, steps:[], step:0 };
+function playCutscene(steps){
+  cutscene.active = true; cutscene.steps = steps; cutscene.step = 0; cutscene.t = 0;
+  controlLocked = true;
+}
+// step: {dur, from:{pitch,yaw}, to:{pitch,yaw}, onStart, onEnd, hold}
+function updateCutscene(dt){
+  if(!cutscene.active) return;
+  const s = cutscene.steps[cutscene.step];
+  if(!s){ cutscene.active=false; return; }
+  if(cutscene.t===0 && s.onStart) s.onStart();
+  cutscene.t += dt;
+  const k = Math.min(1, cutscene.t / s.dur);
+  const e = k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;  // easeInOut
+  if(s.to){
+    if(s.to.pitch!==undefined) player.pitch = s.from.pitch + (s.to.pitch-s.from.pitch)*e;
+    if(s.to.yaw!==undefined)   player.yaw   = s.from.yaw   + (s.to.yaw  -s.from.yaw  )*e;
+  }
+  if(k>=1){
+    if(s.onEnd) s.onEnd();
+    cutscene.step++; cutscene.t=0;
+    if(cutscene.step>=cutscene.steps.length) cutscene.active=false;
+  }
+}
+
+// ---------- 트리거 ----------
+const fired = {};
+function once(id, fn){ if(!fired[id]){ fired[id]=true; fn(); } }
+
+let started = false;
+function beginScene(){
+  // 입구 독백 (존재 글씨체)
+  showDialog([{who:"entity", text:"익숙하다. 어느날 어디선가 봤던."}]);
+}
+
+function checkTriggers(){
+  const {x,z} = player;
+
+  // 커튼 통과
+  if(z < -5.4 && z > -7 && Math.abs(x)<2) once("curtain", ()=>{
+    // 커튼이 서서히 사라짐
+    const iv = setInterval(()=>{
+      curtain.material.opacity -= 0.05;
+      if(curtain.material.opacity<=0){ curtain.visible=false; clearInterval(iv); }
+    }, 40);
+  });
+
+  // 책장 복도 진입
+  if(z < -19 && Math.abs(x)<2) once("corridor", ()=>{
+    showDialog([
+      {who:"entity", text:"비닐에 쌓여있지만, 만져보면 미끌거릴 것 같아."},
+      {who:"entity", text:"소름끼치고 기괴해. 흐르는 것 같아."},
+    ]);
+  });
+
+  // 개방 공간에서 창문(북쪽) 응시 → 컷씬
+  if(z < -31 && z > -39 && Math.abs(x)<6 && !fired["window"]){
+    // 카메라 전방 z성분 = -cos(yaw) → 북쪽 응시 시 cos(yaw) ≈ 1
+    const facingNorth = Math.cos(player.yaw) > 0.85;
+    if(facingNorth && Math.abs(player.pitch) < 0.5){
+      once("window", windowCutscene);
+    }
+  }
+  // 창문을 안 보고 존재의 방 쪽으로 접근하면 컷씬 강제 발동 (연출 스킵 방지)
+  if(!fired["window"] && x < -4.2 && z < -31 && z > -39){
+    once("window", windowCutscene);
+  }
+
+  // 존재의 방 진입 → 최종 시퀀스 (창문 컷씬을 본 후에만)
+  if(fired["window"] && x < -6.5 && z < -30.5 && z > -39.5) once("finale", finaleSequence);
+}
+
+// ---------- 컷씬 1: 창밖 응시 ----------
+function windowCutscene(){
+  const p0 = player.pitch, y0 = player.yaw;
+  // 어느 방향을 보고 있었든, 먼저 창문(북쪽, yaw=0)을 향해 천천히 회전
+  playCutscene([
+    { dur:1.1, from:{pitch:p0,yaw:y0}, to:{pitch:0,yaw:0},
+      onEnd:()=>{ showDialog([{who:"entity", text:"발 밑이 축축하다. 여기… 있어.",}], ()=>{ cutStep2(); }); } },
+  ]);
+  function cutStep2(){
+    playCutscene([
+      // 시야가 발 아래로
+      { dur:1.6, from:{pitch:player.pitch, yaw:player.yaw}, to:{pitch:-1.25, yaw:player.yaw},
+        onEnd:()=>{
+          // 왼쪽(서쪽)에서 물줄기가 흘러옴
+          stream.visible = true;
+          stream.position.z = player.z;
+          let s = 0.01;
+          const iv = setInterval(()=>{
+            s += 0.06;
+            stream.scale.x = s*14;
+            stream.position.x = -6 + (s*14*0.6)/2;
+            if(stream.position.x > player.x - 0.4){ clearInterval(iv); }
+          }, 50);
+        } },
+      { dur:2.6, from:{pitch:-1.25,yaw:player.yaw}, to:{pitch:-1.25,yaw:player.yaw} }, // 지켜보는 시간
+      // 다시 정면
+      { dur:1.2, from:{pitch:-1.25,yaw:player.yaw}, to:{pitch:0,yaw:player.yaw},
+        onEnd:()=>{ controlLocked=false; } },
+    ]);
+  }
+}
+
+// ---------- 컷씬 2: 최종 시퀀스 ----------
+const fadeEl = document.getElementById("fade");
+const redEl  = document.getElementById("redflash");
+function finaleSequence(){
+  controlLocked = true;
+  showDialog([
+    {who:"entity", text:"당신은"},
+    {who:"entity", text:"결국"},
+    {who:"entity", text:"이곳을"},
+    {who:"entity", text:"보고있다."},
+    {who:"entity", text:"두통에 괴로운듯 머리를 부여잡는다."},
+  ], ()=>{
+    // 시야가 발 아래로 → 클라이맥스 → 흰 대사 → 고개 들기 → 암전
+    playCutscene([
+      { dur:1.6, from:{pitch:player.pitch,yaw:player.yaw}, to:{pitch:-1.3,yaw:player.yaw},
+        onEnd:()=>{
+          // 붉은 플래시 점멸 (클라이맥스 연출)
+          let n=0;
+          const iv=setInterval(()=>{
+            redEl.style.opacity = (n%2===0)?0.9:0;
+            n++;
+            if(n>7){ clearInterval(iv); redEl.style.opacity=0; whiteLine(); }
+          },110);
+        } },
+    ]);
+  });
+
+  function whiteLine(){
+    showDialog([{who:"player", text:"잠깐, 지금 이거 누가 말하는거지?"}], ()=>{
+      // 존재 방향으로 천천히 고개를 듦
+      const dx = entity.position.x - player.x;
+      const dz = entity.position.z - player.z;
+      const targetYaw = Math.atan2(-dx, -dz); // 전방(-sin, -cos)이 존재를 향하도록
+      playCutscene([
+        { dur:3.4, from:{pitch:-1.3, yaw:player.yaw}, to:{pitch:-0.28, yaw:targetYaw},
+          onEnd:()=>{
+            // 발이 보이는 순간 — 화면 흔들림 + 암전
+            shakeAmt = 0.09;
+            setTimeout(()=>{
+              fadeEl.style.opacity = 1;
+              setTimeout(()=>{
+                location.href = "ending.html";
+              }, 2200);
+            }, 650);
+          } },
+      ]);
+    });
+  }
+}
+
+// ---------- 루프 ----------
+let shakeAmt = 0;
+const clock = new THREE.Clock();
+function loop(){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, clock.getDelta());
+  const t = clock.elapsedTime;
+
+  updateCutscene(dt);
+
+  // 이동
+  if(!controlLocked && !cutscene.active && document.pointerLockElement){
+    let mx=0, mz=0;
+    if(keys["KeyW"]||keys["ArrowUp"])    mz -= 1;
+    if(keys["KeyS"]||keys["ArrowDown"])  mz += 1;
+    if(keys["KeyA"]||keys["ArrowLeft"])  mx -= 1;
+    if(keys["KeyD"]||keys["ArrowRight"]) mx += 1;
+    if(mx||mz){
+      const len = Math.hypot(mx,mz); mx/=len; mz/=len;
+      const sin=Math.sin(player.yaw), cos=Math.cos(player.yaw);
+      const dx = (mx*cos + mz*sin) * WALK_SPEED * dt;
+      const dz = (mz*cos - mx*sin) * WALK_SPEED * dt;
+      if(insideAnyRoom(player.x+dx, player.z))   player.x += dx;
+      if(insideAnyRoom(player.x,    player.z+dz)) player.z += dz;
+    }
+    checkTriggers();
+  }
+  // 트리거는 컷씬 아닐 때 창문 응시도 감지해야 하므로 한 번 더
+  if(!cutscene.active && !dialogActive) checkTriggers();
+
+  // 카메라
+  const bobY = (!controlLocked && (keys["KeyW"]||keys["KeyS"]||keys["KeyA"]||keys["KeyD"]))
+    ? Math.sin(t*7.2)*0.028 : 0;
+  const shX = (Math.random()-0.5)*shakeAmt, shY=(Math.random()-0.5)*shakeAmt;
+  shakeAmt *= 0.94;
+  camera.position.set(player.x + shX, EYE_H + bobY + shY, player.z);
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+
+  // 손전등이 카메라를 따라감
+  flash.position.copy(camera.position);
+  const dir = new THREE.Vector3(0,0,-1).applyEuler(camera.rotation);
+  flashTarget.position.copy(camera.position).add(dir.multiplyScalar(6));
+
+  // 먼지 부유
+  const pos = dust.geometry.attributes.position;
+  for(let i=0;i<DUST_N;i++){
+    pos.array[i*3+1] += Math.sin(t*0.6 + i)*0.0006 + 0.0004;
+    if(pos.array[i*3+1] > CEIL_H) pos.array[i*3+1] = 0;
+  }
+  pos.needsUpdate = true;
+
+  renderer.render(scene, camera);
+}
+loop();
+</script>
+</body>
+</html>

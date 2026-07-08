@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>3F — 운영자석</title>
+<style>
+  :root{
+    --slack-purple:#3F0E40; --slack-active:#1164A3; --ink:#1D1C1D;
+    --mac-bg:#1c1c22;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:#000; overflow:hidden;
+    font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; }
+
+  .layer{ position:fixed; inset:0; display:none; }
+  .layer.on{ display:block; }
+
+  /* ============ 책상 뷰 ============ */
+  #deskLayer{ display:none; align-items:center; justify-content:center; background:#050507; }
+  #deskLayer.on{ display:flex; }
+  .desk-frame{
+    position:relative; height:100%; aspect-ratio:3/4; max-width:100vw;
+    background:url(assets/mini/bg_desk.jpg) center/contain no-repeat;
+    image-rendering:pixelated;
+  }
+  .hotspot{
+    position:absolute; width:120px; height:120px; margin:-60px 0 0 -60px;
+    cursor:pointer; border-radius:50%;
+  }
+  .hotspot::after{
+    content:""; position:absolute; inset:35%; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.75);
+    box-shadow:0 0 12px rgba(255,255,255,0.5);
+    animation:pulse 1.8s ease-in-out infinite;
+  }
+  .hotspot.seen::after{ border-color:rgba(255,255,255,0.22); box-shadow:none; animation:none; }
+  @keyframes pulse{ 0%,100%{ transform:scale(0.85); opacity:0.7; } 50%{ transform:scale(1.1); opacity:1; } }
+
+  /* CRT */
+  #crt{
+    position:fixed; inset:0; pointer-events:none; z-index:400;
+    background:
+      radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0, rgba(0,0,0,0.10) 1px, transparent 2px, transparent 4px);
+    mix-blend-mode:multiply;
+  }
+
+  /* ============ 독백 ============ */
+  #mono{
+    position:fixed; z-index:350; left:50%; bottom:8vh; transform:translateX(-50%);
+    background:rgba(245,243,238,0.97); color:#161616;
+    padding:15px 26px; border-radius:10px; font-size:15px; max-width:78%;
+    box-shadow:0 4px 0 rgba(0,0,0,0.55); display:none; text-align:center; cursor:pointer;
+  }
+  #mono .hint{ display:block; font-size:10px; opacity:0.5; margin-top:6px; letter-spacing:0.2em; }
+
+  /* ============ 버튼(충전 폴백 등) ============ */
+  .float-btn{
+    position:fixed; z-index:355; left:50%; bottom:8vh; transform:translateX(-50%);
+    background:#E8A33D; color:#1a1200; border:none; border-radius:22px;
+    padding:12px 24px; font-size:13.5px; font-weight:600; cursor:pointer; display:none;
+  }
+
+  /* ============ 맥북 화면 ============ */
+  #macLayer{ background:#000; }
+  .mac-screen{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+  }
+  /* 잠금화면 */
+  #lockScreen{
+    flex:1; background:radial-gradient(120% 100% at 50% 0%, #2a2f45, #101018 70%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    color:#e8e8ec;
+  }
+  #lockScreen .avatar{
+    width:72px; height:72px; border-radius:50%;
+    background:url(assets/profiles/yujin.png) center/cover; border:2px solid rgba(255,255,255,0.3);
+  }
+  #lockScreen .uname{ font-size:15px; font-weight:600; }
+  #lockScreen .pw{
+    display:flex; gap:12px; margin-top:8px;
+  }
+  #lockScreen .pw .cell{
+    width:16px; height:16px; border-radius:50%;
+    border:1.5px solid rgba(255,255,255,0.7); transition:background 0.1s;
+  }
+  #lockScreen .pw .cell.fill{ background:#fff; }
+  #lockScreen .pwhint{ font-size:11.5px; color:#8a8a94; margin-top:4px; }
+  .shake{ animation:shakeX 0.4s; }
+  @keyframes shakeX{ 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);} 60%{transform:translateX(-5px);} 80%{transform:translateX(5px);} }
+
+  /* 데스크탑 */
+  #macDesktop{ flex:1; display:none; flex-direction:column;
+    background:linear-gradient(150deg,#1d2233,#161222 60%,#241a26);
+    position:relative;
+  }
+  .menubar{
+    height:28px; background:rgba(22,22,28,0.75); backdrop-filter:blur(10px);
+    display:flex; align-items:center; padding:0 14px; gap:16px;
+    font-size:12px; color:#e2e2e6; flex-shrink:0;
+  }
+  .menubar .apple{ font-size:13px; }
+  .menubar .sp{ flex:1; }
+  .desk-icons{ position:absolute; top:44px; right:26px; display:flex; flex-direction:column; gap:20px; }
+  .dicon{
+    width:76px; text-align:center; cursor:pointer; color:#e8e8ec; font-size:11px;
+  }
+  .dicon .folder{ font-size:40px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
+  .dock{
+    position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+    background:rgba(40,40,48,0.55); backdrop-filter:blur(14px);
+    border:0.5px solid rgba(255,255,255,0.12);
+    border-radius:18px; padding:8px 14px; display:flex; gap:16px;
+  }
+  .dock .dapp{
+    width:48px; height:48px; border-radius:11px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-size:24px;
+    transition:transform 0.12s;
+  }
+  .dock .dapp:hover{ transform:scale(1.14) translateY(-4px); }
+
+  /* ============ 창 공통 ============ */
+  .mwin{
+    position:absolute; z-index:20; background:#fff; border-radius:11px; overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,0.55); display:none; flex-direction:column;
+  }
+  .mwin.on{ display:flex; }
+  .mwin .mtitle{
+    height:34px; background:#ececef; display:flex; align-items:center; padding:0 12px; gap:7px; flex-shrink:0;
+    font-size:12px; color:#555;
+  }
+  .mwin .dot{ width:11px; height:11px; border-radius:50%; }
+  .dot.r{ background:#ff5f57; cursor:pointer; } .dot.y{ background:#febc2e; } .dot.g{ background:#28c840; }
+  .mwin .mtitle .tname{ flex:1; text-align:center; margin-right:40px; }
+
+  /* ---- 메시지 앱 ---- */
+  #msgWin{ inset:6% 8%; }
+  .msg-body{ flex:1; display:flex; min-height:0; }
+  .msg-list{ width:210px; border-right:1px solid #e2e2e4; background:#f6f6f8; overflow-y:auto; flex-shrink:0; }
+  .msg-item{ padding:12px 14px; border-bottom:1px solid #ececee; cursor:default; }
+  .msg-item.active{ background:#0a84ff; color:#fff; }
+  .msg-item .mi-name{ font-size:13px; font-weight:600; }
+  .msg-item .mi-prev{ font-size:11.5px; opacity:0.7; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .msg-thread{ flex:1; display:flex; flex-direction:column; min-width:0; background:#fff; }
+  .thread-scroll{ flex:1; overflow-y:auto; padding:16px 18px; }
+  .date-sep{ text-align:center; font-size:11px; color:#98989e; margin:16px 0 10px; }
+  .bubble{ max-width:64%; padding:8px 13px; border-radius:17px; font-size:13.5px; line-height:1.55; margin-bottom:4px; word-break:break-word; }
+  .bubble.in{ background:#e9e9eb; color:#111; margin-right:auto; border-bottom-left-radius:5px; }
+  .bubble.out{ background:#0a84ff; color:#fff; margin-left:auto; border-bottom-right-radius:5px; }
+  .bubble a{ color:inherit; text-decoration:underline; cursor:pointer; }
+  .blocked{ text-align:center; font-size:11.5px; color:#98989e; margin:12px 0; }
+  .msg-inputbar{ padding:8px 14px 12px; flex-shrink:0; }
+  .msg-inputbar .mi-input{
+    display:flex; gap:8px; border:1px solid #d5d5d8; border-radius:18px; padding:7px 12px;
+  }
+  .mi-input input{ flex:1; border:none; outline:none; font-size:13px; }
+  .mi-input button{ background:none; border:none; color:#0a84ff; font-size:13px; font-weight:600; cursor:pointer; }
+  .mi-input button:disabled, .mi-input input:disabled{ opacity:0.4; }
+
+  /* ---- 크롬 ---- */
+  #chromeWin{ inset:5% 7%; }
+  .chrome-bar{ background:#dee1e6; padding:8px 12px 0; flex-shrink:0; }
+  .chrome-tab{
+    display:inline-flex; align-items:center; gap:8px; background:#fff;
+    border-radius:9px 9px 0 0; padding:7px 16px; font-size:12px; color:#333;
+  }
+  .chrome-url{
+    background:#fff; padding:7px 12px; display:flex; align-items:center; gap:10px; flex-shrink:0;
+    border-bottom:1px solid #e2e2e4;
+  }
+  .chrome-url .urlbox{
+    flex:1; background:#f1f3f4; border-radius:14px; padding:6px 14px; font-size:12px; color:#444;
+  }
+  .chrome-view{ flex:1; overflow-y:auto; position:relative; background:#fff; }
+  .restore-bar{
+    position:absolute; top:10px; right:12px; z-index:5;
+    background:#fff; border:1px solid #dadce0; border-radius:9px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.14); padding:12px 14px;
+    font-size:12.5px; color:#333; display:flex; align-items:center; gap:12px;
+  }
+  .restore-bar button{
+    background:#1a73e8; color:#fff; border:none; border-radius:6px;
+    padding:6px 12px; font-size:12px; cursor:pointer;
+  }
+
+  /* ---- 노스텔지아 비스타 사이트 (레트로 기업 사이트 톤) ---- */
+  .nv-site{ min-height:100%; background:#C2CFD2; color:#111; display:none;
+    font-family:-apple-system,"Helvetica Neue","Apple SD Gothic Neo",sans-serif; }
+  .nv-site.on{ display:block; }
+  .nv-top{
+    display:flex; align-items:center; gap:34px; padding:14px 28px 12px;
+    border-bottom:3px solid #111; background:#CBD6D8;
+  }
+  .nv-top img{ height:40px; }
+  .nv-top .nav{ display:flex; gap:26px; font-size:12.5px; color:#111; }
+  .nv-top .nav span{ cursor:default; }
+  .nv-top .nav span.u{ text-decoration:underline; }
+  .nv-hero{
+    position:relative; text-align:center; padding:74px 20px 60px;
+    background:#6c7477; overflow:hidden;
+  }
+  .nv-hero h1{
+    font-family:"Times New Roman",Georgia,serif; font-weight:500;
+    font-size:44px; color:#0e0e0e; letter-spacing:0.01em;
+  }
+  .nv-hero .by{ font-size:14px; font-weight:700; color:#1c1c1c; margin-top:16px; }
+  /* 나비 */
+  .butterfly{
+    position:absolute; left:0; top:0; width:34px; height:34px; z-index:3;
+    offset-path: path("M -40 220 C 120 60, 340 260, 520 140 C 640 60, 700 120, 742 96");
+    offset-rotate: auto;
+    animation: flyIn 5.2s ease-in-out forwards;
+  }
+  @keyframes flyIn{
+    0%{ offset-distance:0%; opacity:0; }
+    6%{ opacity:1; }
+    100%{ offset-distance:100%; }
+  }
+  .butterfly .wing{ transform-origin:center; animation:flap 0.22s ease-in-out infinite alternate; }
+  .butterfly .wing.right{ animation-delay:0.11s; }
+  @keyframes flap{ from{ transform:scaleX(1); } to{ transform:scaleX(0.35); } }
+  .butterfly.landed .wing{ animation-duration:1.6s; }
+
+  .nv-main{ max-width:640px; margin:0 auto; padding:38px 24px 70px; }
+  .nv-tabs{ display:flex; gap:30px; margin-bottom:34px; border-bottom:1px solid #98a6a9; }
+  .nv-tab{ cursor:pointer; padding-bottom:9px; color:#5a686b; font-size:13px; }
+  .nv-tab b{ font-family:"Times New Roman",Georgia,serif; font-size:19px; font-weight:500; color:inherit; margin-right:7px; }
+  .nv-tab.on{ color:#111; border-bottom:3px solid #111; }
+  .nv-panel{ display:none; }
+  .nv-panel.on{ display:block; }
+  .nv-intro{ font-size:12.5px; color:#333; margin-bottom:26px; line-height:1.8; }
+  .nv-field{ margin-bottom:20px; padding-left:14px; border-left:2px solid #2E5A5E; }
+  .nv-field label{ display:block; margin-bottom:7px; }
+  .nv-field label b{ font-size:13.5px; color:#111; }
+  .nv-field label span{ font-size:11.5px; color:#444; margin-left:7px; }
+  .nv-field input, .nv-field textarea, .nv-field select{
+    width:100%; background:#fff; border:1px solid #2E5A5E; border-radius:0;
+    color:#111; padding:9px 11px; font-size:13px; outline:none; font-family:inherit;
+  }
+  .nv-field textarea{ min-height:70px; resize:vertical; }
+  .nv-submit{
+    display:block; margin:30px 0 0; background:#2E5A5E; color:#fff;
+    border:none; padding:11px 40px; font-size:13.5px; font-weight:700; cursor:pointer;
+  }
+  .nv-submit:active{ transform:translateY(1px); }
+  .nv-result{
+    background:#fff; border:1px solid #2E5A5E; padding:20px; margin-top:26px;
+    font-size:13px; line-height:2; display:none; color:#111;
+  }
+  .nv-result.on{ display:block; }
+  .nv-result .num{ color:#2E5A5E; font-size:17px; letter-spacing:0.3em; font-weight:700; }
+  .nv-row{ display:flex; gap:10px; }
+  .nv-row .k{ width:120px; color:#5a686b; flex-shrink:0; }
+
+  /* ---- 사전 설문 (성격/기질 평가) ---- */
+  .sv-block{ margin:34px 0 8px; padding-top:22px; border-top:1px solid #98a6a9; }
+  .sv-block h4{ font-size:14.5px; color:#111; }
+  .sv-block h4 span{ font-size:11.5px; color:#444; font-weight:400; margin-left:8px; }
+  .sv-desc{ font-size:11.5px; color:#333; line-height:1.8; margin:8px 0 14px; }
+  .sv-start{
+    background:#2E5A5E; color:#fff; border:none; padding:8px 26px;
+    font-size:12.5px; font-weight:700; cursor:pointer;
+  }
+  .sv-start.done{ background:#7fa0a3; cursor:default; }
+  .nv-q{ margin-bottom:26px; }
+  .nv-q .qt{ font-size:13.5px; font-weight:700; color:#111; }
+  .nv-q .qk{ font-size:11.5px; color:#444; margin:3px 0 10px; }
+  .yn{ display:flex; gap:34px; align-items:center; }
+  .yn label{ display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; cursor:pointer; }
+  .yn label span{ font-size:11.5px; font-weight:400; color:#444; }
+  .sq{
+    width:22px; height:22px; background:#fff; border:1.5px solid #2E5A5E;
+    display:inline-block; position:relative; cursor:pointer; flex-shrink:0;
+  }
+  .sq.on::after{ content:"✕"; position:absolute; inset:0; display:flex;
+    align-items:center; justify-content:center; font-size:14px; color:#111; }
+  .scale-row{ display:flex; align-items:center; gap:8px; margin-bottom:12px; justify-content:center; }
+  .scale-row .lab{ width:110px; font-size:12.5px; font-weight:700; color:#111; text-align:right; }
+  .scale-row .lab span, .scale-row .lab2 span{ font-size:11px; font-weight:400; color:#444; margin-left:4px; }
+  .scale-row .lab2{ width:110px; font-size:12.5px; font-weight:700; color:#111; }
+  .scale-row .cells{ display:flex; gap:7px; }
+
+  /* ---- 슬랙(맥북) ---- */
+  #slackWin{ inset:6% 9%; }
+  .sl-body{ flex:1; display:flex; min-height:0; }
+  .sl-side{ width:190px; background:var(--slack-purple); color:#c9a8cc; padding:12px 0; font-size:13px; flex-shrink:0; }
+  .sl-side .t{ color:#fff; font-weight:700; padding:0 14px 12px; font-size:14px; }
+  .sl-item{ padding:4px 14px 4px 22px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+  .sl-item.active{ background:var(--slack-active); color:#fff; }
+  .sl-item .spin{
+    display:inline-block; width:10px; height:10px; border:1.5px solid #8a6b8e; border-top-color:#d5c3d6;
+    border-radius:50%; animation:spin 1s linear infinite; margin-right:6px; vertical-align:-1px;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .sl-chat{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .sl-head{ padding:11px 16px; border-bottom:1px solid #e2e2e2; font-weight:700; font-size:14px; color:var(--ink); flex-shrink:0; }
+  .sl-log{ flex:1; overflow-y:auto; padding:14px 16px; }
+  .sl-g{ display:flex; gap:9px; margin-bottom:13px; }
+  .sl-g .av{ width:34px; height:34px; border-radius:6px; background:#b9b9bf; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:#fff; font-size:16px; }
+  .sl-g .nm{ font-weight:700; font-size:13px; color:var(--ink); }
+  .sl-g .tm{ font-size:11px; color:#868686; margin-left:7px; }
+  .sl-g .ln{ font-size:13.5px; color:var(--ink); line-height:1.9; }
+  .sl-fail{ padding:30px; text-align:center; color:#98989e; font-size:12.5px; line-height:2; }
+
+  /* ============ 진동 아이콘 + 종료 ============ */
+  #vibeIcon{
+    position:absolute; z-index:60; top:44px; left:26px; display:none;
+    background:rgba(20,20,26,0.85); border:1px solid rgba(255,255,255,0.15);
+    border-radius:12px; padding:10px 16px; color:#e8e8ec; font-size:12.5px;
+    align-items:center; gap:10px; backdrop-filter:blur(8px);
+  }
+  #vibeIcon.on{ display:flex; }
+  #vibeIcon .ph{ font-size:18px; animation:vibr 0.3s linear infinite; }
+  @keyframes vibr{ 25%{transform:rotate(-8deg);} 75%{transform:rotate(8deg);} }
+
+  #fade{ position:fixed; inset:0; background:#000; z-index:380; opacity:0; pointer-events:none; transition:opacity 1s; }
+
+  /* 텍스트 파일(이스터에그) */
+  #txtWin{ width:380px; height:220px; left:50%; top:50%; transform:translate(-50%,-50%); }
+  #txtWin .txt-body{ flex:1; padding:18px; font-size:14px; color:#222; font-family:"Courier New",monospace; }
+</style>
+</head>
+<body>
+
+<!-- 책상 -->
+<div class="layer on" id="deskLayer">
+  <div class="desk-frame">
+    <div class="hotspot" id="hsPhone"  style="left:25%; top:28%;"></div>
+    <div class="hotspot" id="hsTumbler" style="left:48%; top:18%;"></div>
+    <div class="hotspot" id="hsMac"    style="left:45%; top:46%;"></div>
+  </div>
+</div>
+
+<!-- 맥북 -->
+<div class="layer" id="macLayer">
+  <div class="mac-screen">
+    <div id="lockScreen">
+      <div class="avatar"></div>
+      <div class="uname">김유진</div>
+      <div class="pw" id="pwDots">
+        <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+      </div>
+      <div class="pwhint">암호를 입력하세요 (키보드 숫자)</div>
+    </div>
+
+    <div id="macDesktop">
+      <div class="menubar">
+        <span class="apple"></span><span style="font-weight:600">Finder</span>
+        <span class="sp"></span><span id="macClock"></span>
+      </div>
+      <div class="desk-icons" id="deskIcons">
+        <div class="dicon" data-folder="0"><div class="folder">📁</div>업무</div>
+      </div>
+      <div class="dock">
+        <div class="dapp" style="background:linear-gradient(160deg,#67e26f,#22b93c)" data-open="msg">💬</div>
+        <div class="dapp" style="background:#fff" data-open="chrome">
+          <svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fff"/><circle cx="12" cy="12" r="9.5" fill="none" stroke="#dadce0"/><path d="M12 2.5a9.5 9.5 0 0 1 8.2 4.75H12a4.75 4.75 0 0 0-4.5 3.2z" fill="#EA4335"/><path d="M3.8 7.25a9.5 9.5 0 0 0 4.1 13.1l4.1-7.1a4.75 4.75 0 0 1-3.9-2.8z" fill="#34A853"/><path d="M20.2 7.25A9.5 9.5 0 0 1 12 21.5c-1.4 0-2.8-.3-4.1-.9l4.1-7.1a4.75 4.75 0 0 0 4.3-6.25z" fill="#FBBC05"/><circle cx="12" cy="12" r="4" fill="#4285F4" stroke="#fff" stroke-width="0.8"/></svg>
+        </div>
+        <div class="dapp" style="background:#fff" data-open="slack">
+          <svg width="24" height="24" viewBox="0 0 24 24"><g>
+            <rect x="9" y="2.5" width="3" height="8" rx="1.5" fill="#36C5F0"/>
+            <rect x="12.5" y="9" width="8" height="3" rx="1.5" fill="#2EB67D"/>
+            <rect x="12" y="13.5" width="3" height="8" rx="1.5" fill="#ECB22E"/>
+            <rect x="3.5" y="12" width="8" height="3" rx="1.5" fill="#E01E5A"/>
+          </g></svg>
+        </div>
+      </div>
+
+      <!-- 메시지 -->
+      <div class="mwin" id="msgWin">
+        <div class="mtitle"><span class="dot r" data-close="msgWin"></span><span class="dot y"></span><span class="dot g"></span><span class="tname">메시지</span></div>
+        <div class="msg-body">
+          <div class="msg-list" id="msgList"></div>
+          <div class="msg-thread">
+            <div class="thread-scroll" id="threadScroll"></div>
+            <div class="msg-inputbar">
+              <div class="mi-input">
+                <input id="miField" placeholder="문자 메시지" autocomplete="off">
+                <button id="miSend">보내기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 크롬 -->
+      <div class="mwin" id="chromeWin">
+        <div class="mtitle"><span class="dot r" data-close="chromeWin"></span><span class="dot y"></span><span class="dot g"></span><span class="tname">Chrome</span></div>
+        <div class="chrome-bar"><div class="chrome-tab" id="chromeTabName">새 탭</div></div>
+        <div class="chrome-url"><div class="urlbox" id="chromeUrl">chrome://newtab</div></div>
+        <div class="chrome-view" id="chromeView">
+          <div class="restore-bar" id="restoreBar">
+            <span>이전 페이지를 복구하시겠습니까?</span>
+            <button id="restoreBtn">복구</button>
+          </div>
+          <div class="nv-site" id="nvSite">
+            <div class="nv-top">
+              <img src="assets/nv_logo.png" alt="Nostalgia Vista">
+              <div class="nav">
+                <span class="u">About Nostalgia Vista</span><span>Global Locations</span>
+                <span>Our Businesses</span><span>FAQs</span><span>Your Nostalgia</span>
+              </div>
+            </div>
+            <div class="nv-hero">
+              <svg class="butterfly" id="bfly" viewBox="0 0 34 34">
+                <g fill="#0e0e0e">
+                  <g class="wing left"><path d="M16 17 C 6 4, -2 8, 3 15 C 6 19, 12 19, 16 17 Z M16 17 C 8 20, 4 27, 9 28 C 13 29, 15 22, 16 17 Z"/></g>
+                  <g class="wing right"><path d="M18 17 C 28 4, 36 8, 31 15 C 28 19, 22 19, 18 17 Z M18 17 C 26 20, 30 27, 25 28 C 21 29, 19 22, 18 17 Z"/></g>
+                  <ellipse cx="17" cy="17" rx="1.4" ry="6"/>
+                </g>
+              </svg>
+              <h1>Nostalgia is better than reality!</h1>
+              <div class="by">- Yamamoto Shinsuke</div>
+            </div>
+            <div class="nv-main">
+              <div class="nv-tabs">
+                <div class="nv-tab on" data-tab="apply"><b>Choose Your Journey</b>상담 신청</div>
+                <div class="nv-tab" data-tab="lookup"><b>Your Nostalgia</b>신청 조회</div>
+              </div>
+              <div class="nv-panel on" id="nvApply">
+                <div class="nv-intro">노스텔지아 서비스 이용을 희망하시면 아래의 신청서를 작성해 주세요.<br>* 항목은 필수 답변 항목입니다.</div>
+                <div class="nv-field"><label><b>*Name</b><span>이름</span></label><input id="nvName"></div>
+                <div class="nv-row">
+                  <div class="nv-field" style="flex:1"><label><b>*Age</b><span>나이</span></label><input id="nvAge"></div>
+                  <div class="nv-field" style="flex:2"><label><b>*Birth</b><span>생일</span></label><input id="nvBirth" placeholder="YYYY.MM.DD"></div>
+                </div>
+                <div class="nv-field"><label><b>Sleep Hours</b><span>하루 평균 수면시간</span></label><input id="nvSleep"></div>
+                <div class="nv-field"><label><b>Details of the Dream</b><span>꿈의 내용</span></label><textarea id="nvDream"></textarea></div>
+                <div class="nv-field"><label><b>The Reason Why You Want That</b><span>신청 이유</span></label><textarea id="nvReason"></textarea></div>
+                <div class="nv-row">
+                  <div class="nv-field" style="flex:1"><label><b>Smoking</b><span>흡연 유무</span></label>
+                    <select id="nvSmoke"><option>무</option><option>유</option></select></div>
+                  <div class="nv-field" style="flex:1"><label><b>Exercise / Week</b><span>주당 운동 횟수</span></label><input id="nvExer"></div>
+                </div>
+                <div class="nv-field"><label><b>Other Requests</b><span>기타 요구사항</span></label><textarea id="nvOther"></textarea></div>
+                <div class="sv-block">
+                  <h4>Preliminary Survey <span>사전 설문 조사</span></h4>
+                  <div class="sv-desc">설문 조사를 시작하시려면 시작 버튼을 눌러주세요.</div>
+                  <button class="sv-start" id="svStart">Start</button>
+                </div>
+                <button class="nv-submit" id="nvSubmit">Confirm</button>
+                <div class="nv-result" id="nvApplyResult"></div>
+              </div>
+              <div class="nv-panel" id="nvLookup">
+                <div class="nv-intro">신청하신 내역을 예약번호로 확인하실 수 있습니다.</div>
+                <div class="nv-field"><label><b>Reservation No.</b><span>예약번호</span></label><input id="nvCode" placeholder="예약번호 (5자리)" maxlength="5"></div>
+                <button class="nv-submit" id="nvLookupBtn">Search</button>
+                <div class="nv-result" id="nvLookupResult"></div>
+              </div>
+              <div class="nv-panel" id="nvSurvey">
+                <h2 style="text-align:center; font-size:21px; margin-bottom:2px;">Personality and Temperament Assessment</h2>
+                <div style="text-align:center; font-size:12px; color:#444; margin-bottom:18px;">성격/기질 평가</div>
+                <div class="sv-desc" style="border-top:1px solid #98a6a9; padding-top:14px;">
+                  This test will be used to ensure the stable operation of the program and will not be used for any other purpose. Please answer the following questions honestly to avoid any system conflicts during the service experience.<br>
+                  본 테스트는 프로그램의 안정적인 구동을 위해 이용되며, 다른 목적으로 사용되지 않습니다. 서비스 체험시 시스템 상의 충돌이 일어나지 않도록 다음 모든 문항들에 정직하게 답해 주시기 바랍니다.
+                </div>
+                <div class="nv-q">
+                  <div class="qt">1. Have you ever used the services of Nostalgia Vista before?</div>
+                  <div class="qk">노스텔지아비스타 서비스를 사전에 이용해 본 적이 있습니까?</div>
+                  <div class="yn" data-q="q1">
+                    <label>Yes <span>예</span><i class="sq" data-v="yes"></i></label>
+                    <label>No <span>아니오</span><i class="sq" data-v="no"></i></label>
+                  </div>
+                </div>
+                <div class="nv-q">
+                  <div class="qt">2. Do you have a chronic disease or any medication you are taking?</div>
+                  <div class="qk">앓고 있는 지병이나 복용중인 약이 있습니까?</div>
+                  <div class="yn" data-q="q2">
+                    <label>Yes <span>예</span><i class="sq" data-v="yes"></i></label>
+                    <label>No <span>아니오</span><i class="sq" data-v="no"></i></label>
+                  </div>
+                </div>
+                <div class="nv-q">
+                  <div class="qt">3. Is it correct that the same applicant applies as recorded?</div>
+                  <div class="qk">기록한 것과 동일한 지원자가 신청하는 것이 맞습니까?</div>
+                  <div class="yn" data-q="q3">
+                    <label>Yes <span>예</span><i class="sq" data-v="yes"></i></label>
+                    <label>No <span>아니오</span><i class="sq" data-v="no"></i></label>
+                  </div>
+                </div>
+                <div class="nv-q">
+                  <div class="qt">4. Check out the responses that best represent you.</div>
+                  <div class="qk">자신을 가장 잘 나타내는 응답에 체크해주세요.</div>
+                  <div class="scale-row" data-q="s1">
+                    <div class="lab">Stability <span>안정</span></div>
+                    <div class="cells"></div>
+                    <div class="lab2">Anxiety <span>불안</span></div>
+                  </div>
+                  <div class="scale-row" data-q="s2">
+                    <div class="lab">Rational <span>이성적</span></div>
+                    <div class="cells"></div>
+                    <div class="lab2">Emotional <span>감정적</span></div>
+                  </div>
+                  <div class="scale-row" data-q="s3">
+                    <div class="lab">Depression <span>우울</span></div>
+                    <div class="cells"></div>
+                    <div class="lab2">Vitality <span>활력</span></div>
+                  </div>
+                  <div class="scale-row" data-q="s4">
+                    <div class="lab">Dependent <span>의존적</span></div>
+                    <div class="cells"></div>
+                    <div class="lab2">Self-reliant <span>자립적</span></div>
+                  </div>
+                </div>
+                <button class="nv-submit" id="svSubmit" style="margin:26px auto 0;">Submit</button>
+                <div class="sv-desc" id="svWarn" style="color:#8a1520; display:none; text-align:center; margin-top:12px;">모든 문항에 답해 주세요.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 슬랙(맥북) -->
+      <div class="mwin" id="slackWin">
+        <div class="mtitle"><span class="dot r" data-close="slackWin"></span><span class="dot y"></span><span class="dot g"></span><span class="tname">Slack — 스스라</span></div>
+        <div class="sl-body">
+          <div class="sl-side">
+            <div class="t">스스라 ▾</div>
+            <div class="sl-item" style="opacity:0.8"># 스토리랩_현장운영</div>
+            <div class="sl-item" style="opacity:0.65"># 콘텐츠랩_all</div>
+            <div style="padding:10px 14px 4px; font-size:12px; opacity:0.8">다이렉트 메시지</div>
+            <div class="sl-item active" id="slOOO">OOO</div>
+            <div class="sl-item" id="slLoading"><span class="spin"></span>불러오는 중…</div>
+          </div>
+          <div class="sl-chat">
+            <div class="sl-head" id="slHead">OOO</div>
+            <div class="sl-log" id="slLog"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 이스터에그 메모 -->
+      <div class="mwin" id="txtWin">
+        <div class="mtitle"><span class="dot r" data-close="txtWin"></span><span class="dot y"></span><span class="dot g"></span><span class="tname">메모.txt</span></div>
+        <div class="txt-body">여기서도 업무를 하고 싶으신가요?</div>
+      </div>
+
+      <div id="vibeIcon"><span class="ph">📳</span><span>핸드폰이 울리고 있다 — <b id="vibeAct" style="cursor:pointer; text-decoration:underline">맥북 덮기</b></span></div>
+    </div>
+  </div>
+</div>
+
+<div id="mono"><span class="mtxt"></span><span class="hint">[ 클릭 ]</span></div>
+<button class="float-btn" id="chargeBtn">충전선을 연결했어요</button>
+<div id="fade"></div>
+<div id="crt"></div>
+
+<script src="telemetry.js"></script>
+<script src="desk.js"></script>
+</body>
+</html>

@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>스토리랩 — 운영</title>
+<style>
+  :root{
+    --slack-purple:#3F0E40;
+    --slack-active:#1164A3;
+    --ink:#1D1C1D;
+    --paper:#f5f3ee;
+    --amber:#e8a33d;
+    --danger:#c1121f;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:#0d0d10; overflow:hidden; }
+  body{
+    font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    color:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+  }
+  #stage{
+    position:relative;
+    width:100vw; height:100vh;
+    max-width:1180px; max-height:760px;
+    background:#000; overflow:hidden;
+  }
+  /* 배경 (픽셀 사진) */
+  .bg{
+    position:absolute; inset:0;
+    background-size:cover; background-position:center;
+    image-rendering:pixelated;
+    transition:opacity 0.8s ease, filter 0.8s ease;
+  }
+  /* CRT 오버레이 */
+  #crt{
+    position:absolute; inset:0; pointer-events:none; z-index:40;
+    background:
+      radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0px, rgba(0,0,0,0.10) 1px, transparent 2px, transparent 4px);
+    mix-blend-mode:multiply;
+  }
+
+  /* ========== 공통 패널 ========== */
+  .panel{
+    position:absolute; z-index:20;
+    left:50%; top:50%; transform:translate(-50%,-50%);
+    background:rgba(12,12,16,0.82);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:14px;
+    padding:22px;
+    backdrop-filter:blur(3px);
+    color:#eee;
+    width:min(92%, 720px);
+  }
+  .panel h2{
+    font-size:15px; letter-spacing:0.04em; margin-bottom:6px;
+    color:#fff; font-weight:600;
+  }
+  .panel .sub{ font-size:12.5px; color:#b8b8bd; line-height:1.7; margin-bottom:16px; }
+
+  /* ========== 독백 자막 ========== */
+  #monologue{
+    position:absolute; z-index:35; left:50%; bottom:8%;
+    transform:translateX(-50%);
+    background:rgba(245,243,238,0.96); color:#1a1a1a;
+    padding:14px 24px; border-radius:10px;
+    font-size:15px; letter-spacing:0.02em; max-width:80%;
+    box-shadow:0 4px 0 rgba(0,0,0,0.5); display:none; text-align:center;
+  }
+  #monologue .hint{ display:block; font-size:10px; opacity:0.5; margin-top:6px; letter-spacing:0.2em; }
+
+  /* ========== macOS 슬랙 알림 ========== */
+  #macNotif{
+    position:absolute; top:16px; right:16px; z-index:50;
+    width:330px; display:flex; flex-direction:column; gap:8px;
+  }
+  .notif{
+    background:rgba(40,40,44,0.94); color:#f0f0f2;
+    border-radius:13px; padding:11px 13px;
+    display:flex; gap:10px; align-items:flex-start;
+    box-shadow:0 8px 22px rgba(0,0,0,0.4);
+    backdrop-filter:blur(10px);
+    cursor:pointer;
+    animation:slideIn 0.4s cubic-bezier(0.2,0.9,0.3,1.3);
+    border:0.5px solid rgba(255,255,255,0.08);
+  }
+  @keyframes slideIn{ from{ transform:translateX(360px); opacity:0; } to{ transform:translateX(0); opacity:1; } }
+  .notif .ic{
+    width:34px; height:34px; border-radius:8px; flex-shrink:0;
+    background:var(--slack-purple);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; color:#fff; font-size:13px;
+  }
+  .notif .body{ flex:1; min-width:0; }
+  .notif .top{ display:flex; justify-content:space-between; font-size:11px; color:#c8c8cc; margin-bottom:2px; }
+  .notif .title{ font-weight:600; }
+  .notif .msg{ font-size:12.5px; line-height:1.45; color:#e8e8ea; word-break:break-word; }
+
+  /* ========== 필통 정리 ========== */
+  .pc-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:14px; }
+  .pc-item{
+    display:flex; align-items:center; justify-content:space-between;
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08);
+    border-radius:9px; padding:8px 11px;
+  }
+  .pc-item .nm{ font-size:12.5px; color:#e6e6e8; }
+  .pc-stepper{ display:flex; align-items:center; gap:9px; }
+  .pc-stepper button{
+    width:26px; height:26px; border-radius:7px; border:none; cursor:pointer;
+    background:rgba(255,255,255,0.12); color:#fff; font-size:15px; line-height:1;
+  }
+  .pc-stepper button:active{ transform:scale(0.9); }
+  .pc-count{ min-width:22px; text-align:center; font-size:14px; font-variant-numeric:tabular-nums; color:#fff; }
+  .pc-count.ink{ position:relative; }
+  .pc-count.ink::after{
+    content:""; position:absolute; inset:-6px -3px; border-radius:50%;
+    background:radial-gradient(circle, rgba(5,8,14,0.85), transparent 70%);
+    pointer-events:none; opacity:0; animation:inkBlot 1.4s ease forwards;
+  }
+  @keyframes inkBlot{ 0%{opacity:0;transform:scale(0.3);} 40%{opacity:0.9;} 100%{opacity:0.75;transform:scale(1);} }
+
+  .btn{
+    display:inline-block; border:none; cursor:pointer;
+    background:var(--amber); color:#1a1200; font-weight:600;
+    padding:11px 20px; border-radius:10px; font-size:13.5px;
+    letter-spacing:0.03em;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn.ghost{ background:rgba(255,255,255,0.1); color:#eee; }
+  .row{ display:flex; gap:10px; align-items:center; justify-content:flex-end; }
+  .feedback{ font-size:12px; color:#e2a; margin-right:auto; align-self:center; min-height:16px; }
+
+  /* ========== 피규어 순서 ========== */
+  .fig-row{ display:flex; gap:12px; justify-content:center; margin:6px 0 16px; flex-wrap:wrap; }
+  .fig-slot{
+    width:88px; height:88px; border-radius:14px;
+    background:rgba(255,255,255,0.06); border:2px dashed rgba(255,255,255,0.18);
+    display:flex; align-items:center; justify-content:center;
+    font-size:40px; cursor:pointer; user-select:none;
+    transition:transform 0.1s, border-color 0.2s;
+  }
+  .fig-slot:hover{ border-color:rgba(255,255,255,0.4); }
+  .fig-slot:active{ transform:scale(0.94); }
+  .fig-slot .idx{ position:absolute; margin-top:-58px; margin-left:-58px; font-size:11px; color:#aaa; }
+
+  /* ========== 세팅사진 촬영 ========== */
+  #camView{ position:absolute; inset:0; z-index:15; cursor:crosshair; display:none; }
+  #sensor{
+    position:absolute; z-index:22; width:60px; height:60px; margin:-30px 0 0 -30px;
+    pointer-events:none; opacity:0; transition:opacity 0.15s;
+  }
+  #sensor svg{ width:100%; height:100%; }
+  #shutterInfo{
+    position:absolute; z-index:22; top:16px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,0.6); color:#fff; padding:7px 16px; border-radius:20px;
+    font-size:12.5px; letter-spacing:0.03em;
+  }
+  #flash{ position:absolute; inset:0; background:#fff; z-index:30; opacity:0; pointer-events:none; }
+  .shot-dot{ position:absolute; z-index:21; width:14px; height:14px; margin:-7px 0 0 -7px;
+    border:2px solid #fff; border-radius:50%; box-shadow:0 0 8px rgba(255,255,255,0.7); }
+
+  .hidden{ display:none !important; }
+
+  /* 진행 표시 */
+  #progress{
+    position:absolute; z-index:45; top:14px; left:16px;
+    font-size:11px; letter-spacing:0.14em; color:#8a8a90;
+    background:rgba(0,0,0,0.4); padding:5px 12px; border-radius:20px;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="bg" id="bg"></div>
+  <div id="camView"></div>
+
+  <div id="progress">STORYLAB · 운영</div>
+
+  <!-- 알림 -->
+  <div id="macNotif"></div>
+
+  <!-- 독백 -->
+  <div id="monologue"><span class="mtxt"></span><span class="hint">[ 클릭 ]</span></div>
+
+  <!-- 세팅사진 UI -->
+  <div id="sensor"><svg viewBox="0 0 60 60"><g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round">
+    <circle cx="30" cy="42" r="3" fill="#fff" stroke="none"/>
+    <path d="M20 34 a14 14 0 0 1 20 0"/>
+    <path d="M14 27 a24 24 0 0 1 32 0"/>
+  </g></svg></div>
+  <div id="shutterInfo" class="hidden"></div>
+  <div id="flash"></div>
+
+  <div id="crt"></div>
+</div>
+
+<script src="telemetry.js"></script>
+<script>
+const stage = document.getElementById("stage");
+const bg = document.getElementById("bg");
+const notifWrap = document.getElementById("macNotif");
+const mono = document.getElementById("monologue");
+const monoTxt = mono.querySelector(".mtxt");
+
+const A = "assets/mini/";
+function setBg(file, filter){
+  bg.style.backgroundImage = `url(${A}${file})`;
+  bg.style.filter = filter || "none";
+}
+
+// ---------- 독백 ----------
+let monoCb = null;
+function say(text, cb){
+  monoTxt.textContent = text;
+  mono.style.display = "block";
+  monoCb = cb || null;
+}
+mono.addEventListener("click", ()=>{
+  mono.style.display = "none";
+  const cb = monoCb; monoCb = null;
+  if(cb) cb();
+});
+
+// ---------- 슬랙 알림 ----------
+let notifTimer = null;
+function pushNotif(title, msg, onClick){
+  const el = document.createElement("div");
+  el.className = "notif";
+  const now = new Date();
+  const hh = now.getHours(), mm = String(now.getMinutes()).padStart(2,"0");
+  const ampm = hh<12 ? "오전" : "오후";
+  const h12 = ((hh+11)%12)+1;
+  el.innerHTML = `
+    <div class="ic">S</div>
+    <div class="body">
+      <div class="top"><span class="title">Slack</span><span>${ampm} ${h12}:${mm}</span></div>
+      <div class="msg"><b>${title}</b><br>${msg}</div>
+    </div>`;
+  el.addEventListener("click", ()=>{
+    if(notifTimer){ clearInterval(notifTimer); notifTimer=null; }
+    notifWrap.innerHTML = "";
+    onClick && onClick();
+  });
+  notifWrap.appendChild(el);
+  // 최대 4개만 유지
+  while(notifWrap.children.length > 4) notifWrap.removeChild(notifWrap.firstChild);
+}
+// 무시하면 계속 쌓이는 알림
+function nagNotif(title, msgs, onClick){
+  let i = 0;
+  pushNotif(title, msgs[0], onClick);
+  notifTimer = setInterval(()=>{
+    i = (i+1) % msgs.length;
+    pushNotif(title, msgs[i], onClick);
+  }, 4200);
+}
+
+/* ================================================================
+   미니게임 1 — 필통 정리 (정확한 개수 맞추기)
+   ================================================================ */
+const PENCIL_ANSWER = [
+  { key:"매직",   nm:"유성매직(검정)", correct:4 },
+  { key:"볼펜",   nm:"모나미 볼펜(검정)", correct:5 },
+  { key:"네임펜", nm:"네임펜(검정)", correct:4 },
+  { key:"큰가위", nm:"큰 가위", correct:2 },
+  { key:"작가위", nm:"작은 가위", correct:3 },
+  { key:"플라스자",nm:"30cm 플라스틱자", correct:2 },
+  { key:"알루자", nm:"30cm 알루미늄자", correct:1 },
+  { key:"큰커터", nm:"큰 커터칼", correct:2 },
+  { key:"작커터", nm:"작은 커터칼", correct:3 },
+  { key:"화이트", nm:"사쿠라 화이트펜", correct:4 },
+  { key:"연필",   nm:"연필", correct:7 },
+  { key:"샤프",   nm:"샤프", correct:4 },
+];
+
+function startPencil(){
+  setBg("bg_pencilcase.jpg");
+  // 시작값: 정답에서 랜덤하게 어긋나게 (최소 6개 품목은 반드시 틀리게 시작)
+  let state;
+  do {
+    state = PENCIL_ANSWER.map(it=>({
+      ...it,
+      cur: Math.max(0, it.correct + (Math.floor(Math.random()*5)-2))
+    }));
+  } while(state.filter(it=>it.cur!==it.correct).length < 6);
+  let wrongCount = 0;
+
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  panel.innerHTML = `
+    <h2>필통 정리</h2>
+    <div class="sub">운영 기준에 맞게 각 품목의 개수를 맞춰주세요.</div>
+    <div class="pc-grid"></div>
+    <div class="row">
+      <span class="feedback" id="pcFb"></span>
+      <button class="btn" id="pcSubmit">정리 완료</button>
+    </div>`;
+  stage.appendChild(panel);
+  const grid = panel.querySelector(".pc-grid");
+
+  state.forEach((it, idx)=>{
+    const row = document.createElement("div");
+    row.className = "pc-item";
+    row.innerHTML = `
+      <span class="nm">${it.nm}</span>
+      <div class="pc-stepper">
+        <button data-d="-1">−</button>
+        <span class="pc-count" id="pc${idx}">${it.cur}</span>
+        <button data-d="1">＋</button>
+      </div>`;
+    row.querySelectorAll("button").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        const d = +b.dataset.d;
+        it.cur = Math.max(0, it.cur + d);
+        const cEl = row.querySelector(".pc-count");
+        cEl.textContent = it.cur;
+        // 잉크 번짐 연출 (가끔)
+        if(Math.random() < 0.22){
+          cEl.classList.remove("ink"); void cEl.offsetWidth; cEl.classList.add("ink");
+        }
+      });
+    });
+    grid.appendChild(row);
+  });
+
+  panel.querySelector("#pcSubmit").addEventListener("click", ()=>{
+    const allOk = state.every(it=> it.cur === it.correct);
+    const fb = panel.querySelector("#pcFb");
+    if(allOk){
+      panel.remove();
+      onPencilDone();
+    } else {
+      wrongCount++;
+      const wrong = state.filter(it=>it.cur!==it.correct).length;
+      fb.textContent = `아직 ${wrong}개 품목이 안 맞아요.`;
+      stage.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:220});
+      if(wrongCount >= 3){
+        panel.remove();
+        say("그래…. 운영자 매뉴얼이 있었지. 이럴 때 봐야겠어.", ()=>{
+          // 다시 패널 (플레이어는 개인 노션에서 정답 확인)
+          startPencilRetry(state);
+        });
+      }
+    }
+  });
+}
+function startPencilRetry(prevState){
+  // 매뉴얼 본 뒤 재도전: 같은 state 유지, 패널만 재생성
+  const panel = document.createElement("div");
+  panel.className="panel";
+  panel.innerHTML = `
+    <h2>필통 정리 <span style="font-size:11px;opacity:0.6">· 매뉴얼 확인함</span></h2>
+    <div class="sub">운영 기준에 맞게 각 품목의 개수를 맞춰주세요.</div>
+    <div class="pc-grid"></div>
+    <div class="row"><span class="feedback" id="pcFb2"></span><button class="btn" id="pcSubmit2">정리 완료</button></div>`;
+  stage.appendChild(panel);
+  const grid = panel.querySelector(".pc-grid");
+  prevState.forEach((it)=>{
+    const row=document.createElement("div"); row.className="pc-item";
+    row.innerHTML=`<span class="nm">${it.nm}</span>
+      <div class="pc-stepper"><button data-d="-1">−</button>
+      <span class="pc-count">${it.cur}</span><button data-d="1">＋</button></div>`;
+    row.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+      it.cur=Math.max(0,it.cur+ +b.dataset.d);
+      row.querySelector(".pc-count").textContent=it.cur;
+    }));
+    grid.appendChild(row);
+  });
+  panel.querySelector("#pcSubmit2").addEventListener("click",()=>{
+    if(prevState.every(it=>it.cur===it.correct)){ panel.remove(); onPencilDone(); }
+    else { panel.querySelector("#pcFb2").textContent="아직 안 맞는 품목이 있어요.";
+      stage.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:220}); }
+  });
+}
+function onPencilDone(){
+  saveGame("figure");
+  nvlog("pencil_done", {});
+  say("정리 끝. 이제 좀 낫네.", ()=>{
+    // 다음 미니게임 예고 알림
+    setTimeout(startFigureIntro, 900);
+  });
+}
+
+/* ================================================================
+   미니게임 2 — 피규어 순서 (실제 공간 확인 필요)
+   정답: 화난 표정 → 양말 → 주먹 → 막대기
+   ================================================================ */
+const FIG_ICONS = ["😠","🧦","✊","🪄"];   // 화난표정/양말/주먹/막대기(지팡이)
+const FIG_ANSWER = ["😠","🧦","✊","🪄"];
+function startFigureIntro(){
+  nagNotif("박OO(운영지원 인턴)", [
+    "OO님! 공간 기획하면서 산 거 정산해야하는데, 이거 보고 구매 내역 맞춰주실 수 있나요?",
+    "확인 되면 알려주세요~",
+    "천천히 하셔도 돼요!",
+  ], startFigure);
+}
+function startFigure(){
+  setBg("bg_room.jpg");
+  let fails = 0;
+  const order = [null,null,null,null];
+  const pool = [...FIG_ICONS];
+
+  const panel = document.createElement("div");
+  panel.className="panel";
+  panel.innerHTML = `
+    <h2>구매 내역 순서 맞추기</h2>
+    <div class="sub">실제 진열된 순서대로 배치해주세요. (칸을 누르면 다음 아이콘으로 바뀝니다)</div>
+    <div class="fig-row"></div>
+    <div class="row"><span class="feedback" id="figFb"></span><button class="btn" id="figSubmit">제출</button></div>`;
+  stage.appendChild(panel);
+  const row = panel.querySelector(".fig-row");
+  for(let i=0;i<4;i++){
+    const slot=document.createElement("div"); slot.className="fig-slot"; slot.dataset.i=i;
+    slot.textContent="＋";
+    slot.addEventListener("click",()=>{
+      // 현재 아이콘의 다음으로 순환 (빈칸→0→1→2→3→빈칸)
+      let cur = order[i]===null ? -1 : FIG_ICONS.indexOf(order[i]);
+      cur = (cur+1) % (FIG_ICONS.length+1);
+      order[i] = cur===FIG_ICONS.length ? null : FIG_ICONS[cur];
+      slot.textContent = order[i]===null ? "＋" : order[i];
+    });
+    row.appendChild(slot);
+  }
+  panel.querySelector("#figSubmit").addEventListener("click",()=>{
+    const fb = panel.querySelector("#figFb");
+    if(order.some(o=>o===null)){ fb.textContent="네 칸을 모두 채워주세요."; return; }
+    if(order.every((o,i)=>o===FIG_ANSWER[i])){
+      panel.remove();
+      if(notifTimer){ clearInterval(notifTimer); notifTimer=null; }
+      notifWrap.innerHTML="";
+      nvlog("figure_done", {fails});
+      say("이 순서였네. 정산 완료.", ()=>{ saveGame("photo"); setTimeout(startPhotoIntro, 900); });
+    } else {
+      fails++;
+      stage.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:220});
+      // 단계별 힌트 (상대가 슬랙으로)
+      if(fails===2) pushNotif("박OO(운영지원 인턴)","4층 가서 한 번만 확인해보세요!", ()=>{});
+      else if(fails===3||fails===4) pushNotif("박OO(운영지원 인턴)","상상공상 쪽에요!", ()=>{});
+      else if(fails>=5) pushNotif("박OO(운영지원 인턴)","상상공상에 도비요!", ()=>{});
+      fb.textContent="순서가 아직 안 맞아요.";
+    }
+  });
+}
+
+/* ================================================================
+   미니게임 3 — 세팅사진 촬영 (2곳)
+   지점1: 직접 쓴 책 간판 서가 / 지점2: DVD 사진 벽(존재의 방)
+   ================================================================ */
+function startPhotoIntro(){
+  pushNotif("이OO(스토리랩 인턴)",
+    "오늘 이용자 없으니까 저번에 못 찍은 세팅사진 찍어둘게요. 직접 쓴 책 간판이랑, dvd 사진 벽 한 번에 나오게 찍어주세요! 총 두 장!",
+    startPhoto);
+}
+const camView = document.getElementById("camView");
+const sensor = document.getElementById("sensor");
+const shutterInfo = document.getElementById("shutterInfo");
+const flash = document.getElementById("flash");
+// 촬영 지점: 순차 진행. 각 지점은 자기 배경 위에서만 활성화
+const SHOTS = [
+  { x:10, y:18, name:"직접 쓴 책 간판", bg:"bg_shelf_sign.jpg" },
+  { x:52, y:44, name:"DVD 사진 벽",    bg:"bg_room.jpg", finale:true },
+];
+let shotIdx = 0;
+
+function startPhoto(){
+  if(notifTimer){ clearInterval(notifTimer); notifTimer=null; }
+  notifWrap.innerHTML="";
+  shotIdx = 0;
+  setBg(SHOTS[0].bg);
+  camView.style.display="block";
+  shutterInfo.classList.remove("hidden");
+  shutterInfo.textContent = "세팅이 잘 보이는 지점을 찾아 촬영하세요 (0/2)";
+
+  camView.addEventListener("mousemove", onCamMove);
+  camView.addEventListener("click", onCamClick);
+}
+function currentShot(){ return SHOTS[shotIdx] || null; }
+function shotDist(px,py){
+  const s = currentShot();
+  if(!s) return {best:null, bd:999};
+  return {best:s, bd:Math.hypot(px-s.x, py-s.y)};
+}
+function onCamMove(e){
+  const r = stage.getBoundingClientRect();
+  const px = ((e.clientX-r.left)/r.width)*100;
+  const py = ((e.clientY-r.top)/r.height)*100;
+  const {best, bd} = shotDist(px,py);
+  if(best && bd < 22){
+    const strength = 1 - (bd/22);       // 0~1
+    sensor.style.opacity = (0.2 + strength*0.8).toFixed(2);
+    sensor.style.left = e.clientX-r.left+"px";
+    sensor.style.top  = e.clientY-r.top+"px";
+    const sc = 0.7 + strength*0.9;
+    sensor.style.transform = `scale(${sc})`;
+    sensor.dataset.ready = (bd < 7) ? "1" : "0";
+    sensor.querySelectorAll("path,circle").forEach(el=>el.setAttribute("stroke", bd<7?"#7CFC9A":"#fff"));
+  } else {
+    sensor.style.opacity = 0;
+    sensor.dataset.ready = "0";
+  }
+}
+function onCamClick(e){
+  const r = stage.getBoundingClientRect();
+  const px = ((e.clientX-r.left)/r.width)*100;
+  const py = ((e.clientY-r.top)/r.height)*100;
+  const {best, bd} = shotDist(px,py);
+  if(best && bd < 7){
+    // 촬영!
+    flash.animate([{opacity:0},{opacity:0.9},{opacity:0}],{duration:260});
+    const dot=document.createElement("div"); dot.className="shot-dot";
+    dot.style.left=(best.x)+"%"; dot.style.top=(best.y)+"%";
+    stage.appendChild(dot);
+    shotIdx++;
+    shutterInfo.textContent = `세팅이 잘 보이는 지점을 찾아 촬영하세요 (${shotIdx}/2)`;
+
+    if(best.finale){
+      // 두 번째(DVD 사진 벽 = 존재의 방) → 마지막 연출로
+      camView.removeEventListener("mousemove", onCamMove);
+      camView.removeEventListener("click", onCamClick);
+      sensor.style.opacity=0;
+      saveGame("twist");
+      nvlog("photos_done", {});
+      setTimeout(()=>{
+        shutterInfo.classList.add("hidden");
+        say("두 장 다 찍었다. 에어드롭으로 맥북에 옮기자.", ()=>{
+          setBg("bg_desk.jpg");
+          say("…가까이에 있으니까, 유진님 맥북 잠깐 쓸까.", ()=>{
+            location.href = "twist.html";
+          });
+        });
+      }, 500);
+    } else {
+      // 첫 지점 → 도트 정리 후 다음 배경으로 전환
+      setTimeout(()=>{
+        document.querySelectorAll(".shot-dot").forEach(d=>d.remove());
+        setBg(currentShot().bg);
+      }, 400);
+    }
+  }
+}
+
+function endProto(){
+  const panel=document.createElement("div"); panel.className="panel";
+  panel.style.textAlign="center";
+  panel.innerHTML=`<h2 style="margin-bottom:10px">미니게임 3종 완료</h2>
+    <div class="sub" style="margin-bottom:16px">필통 정리 · 피규어 순서 · 세팅사진 촬영<br>이후 "김유진 맥북 슬랙 관점전환 → 3D 클라이맥스"로 이어집니다.</div>
+    <button class="btn" onclick="location.reload()">다시 플레이</button>`;
+  stage.appendChild(panel);
+}
+
+/* ================================================================
+   자동 저장 (localStorage)
+   ================================================================ */
+const SAVE_KEY = "storylab_progress";
+function saveGame(stage){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify({stage, t:Date.now()})); }catch(e){}
+}
+function loadGame(){
+  try{ return JSON.parse(localStorage.getItem(SAVE_KEY)); }catch(e){ return null; }
+}
+function clearGame(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+
+const STAGE_START = {
+  pencil: startFromBeginning,
+  figure: ()=>{ setBg("bg_room.jpg"); startFigureIntro(); },
+  photo:  ()=>{ setBg("bg_shelf_sign.jpg"); startPhotoIntro(); },
+  twist:  ()=>{ location.href="twist.html"; },
+  done:   ()=>{ setBg("bg_room.jpg"); endProto(); },
+};
+
+function startFromBeginning(){
+  setBg("bg_frontview.jpg");
+  say("오늘은 처음으로 3층 A해보는 날이니까… 운영을 하러 가볼까.", ()=>{
+    nagNotif("박OO(운영지원 인턴)", [
+      "oo님! 제가 점심이 늦게 나와서 늦게 갈 것 같아요!",
+      "ㅜㅜ 유진님 아직 안 오셨어요?",
+      "여튼 공간 세팅 좀 부탁드려요!",
+    ], ()=>{
+      say("필통 세팅을 해둘까…", startPencil);
+    });
+  });
+}
+
+/* ================================================================
+   시작: 저장이 있으면 이어하기 제안
+   ================================================================ */
+const save = loadGame();
+if(save && save.stage && save.stage !== "pencil" && STAGE_START[save.stage]){
+  setBg("bg_frontview.jpg", "brightness(0.55)");
+  const p=document.createElement("div"); p.className="panel"; p.style.textAlign="center";
+  const label={figure:"피규어 순서", photo:"세팅사진 촬영", done:"완료"}[save.stage]||save.stage;
+  p.innerHTML=`<h2 style="margin-bottom:8px">진행 기록이 있어요</h2>
+    <div class="sub" style="margin-bottom:18px">마지막 지점: ${label}</div>
+    <div class="row" style="justify-content:center">
+      <button class="btn ghost" id="restart">처음부터</button>
+      <button class="btn" id="resume">이어하기</button>
+    </div>`;
+  stage.appendChild(p);
+  p.querySelector("#resume").addEventListener("click", ()=>{ p.remove(); bg.style.filter="none"; STAGE_START[save.stage](); });
+  p.querySelector("#restart").addEventListener("click", ()=>{ clearGame(); p.remove(); bg.style.filter="none"; startFromBeginning(); });
+} else {
+  startFromBeginning();
+}
+</script>
+</body>
+</html>
