@@ -5,11 +5,47 @@
 const load = (k)=>{ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } };
 const save = (k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
 
-const playerFull = load("storylab_player")?.full || "이용자";
-const playerName = load("storylab_player")?.short || "이용";
+let playerFull = load("storylab_player")?.full || "이용자";
+let playerName = load("storylab_player")?.short || "이용";
 const PROFILE_MAP = { "이주은":"assets/profiles/jueun.png", "박가연":"assets/profiles/gayeon.png", "임새람":"assets/profiles/saeram.png", "김유진":"assets/profiles/yujin.png" };
 const YUJIN_IMG = "assets/profiles/yujin.png";
 const chatHistory = load("storylab_chatlog") || [];
+if(chatHistory.length===0){
+  // 인트로를 거치지 않고 이 화면에 바로 들어온 경우(테스트/미리보기) 대비 — 데모 대화로 채움
+  if(!load("storylab_player")?.full){
+    save("storylab_player", {full:"박가연", short:"가연"});
+    playerFull = "박가연"; playerName = "가연";
+  }
+  const _pn = playerName;
+  const DEMO = [
+    {who:"yujin", text:`${_pn}님, 저 딴소리 하나 해도 되나요?`},
+    {who:"player", text:"넹 말씀하세요"},
+    {who:"yujin", text:"시공 중에 스토리랩 구경갔던 날 기억하세요?"},
+    {who:"yujin", text:"그날 제가 이런 사진을 찍었거든요."},
+    {who:"yujin", imgFail:true, text:"(이미지)"},
+    {who:"player", text:"사진이 안 보여요"},
+    {who:"yujin", text:"이상하네."},
+    {who:"yujin", text:"지긋지긋해요."},
+    {who:"yujin", text:"이제는 진짜 좀 제대로 자고싶어요. 정신 나갈 것 같아요."},
+    {who:"yujin", text:"꿈 속에서 계속 말을 걸어요. 말이 들린다고 할까"},
+    {who:"yujin", text:"그러니까 보통 뭐라 하냐면…"},
+    ...Array.from({length:7}, ()=>({who:"yujin", text:"", blank:true})),
+    {who:"yujin", text:"안되겟슨"},
+    {who:"yujin", text:"저는 그게 뭐였는지 봐야겠어요"},
+    {who:"yujin", text:"그 곳에 있던 게 대체 뭔지..."},
+    {who:"yujin", text:"그날"},
+    {who:"yujin", text:"그거 나만 봤던 건지"},
+    {who:"yujin", text:"알아야겠어요."},
+    {who:"yujin", text:"같이 가봐요, 그래주실거죠"},
+    {who:"yujin", text:"왜 고민해요?"},
+    {who:"yujin", text:"의심스러워요?"},
+    {who:"player", text:"네 그럴게요", corrupt:true},
+    {who:"yujin", text:"네. 정말 감사해요."},
+  ];
+  const now=new Date();
+  DEMO.forEach(m=>{ m.time = `${now.getHours()<12?"오전":"오후"} ${((now.getHours()+11)%12)+1}:${String(now.getMinutes()).padStart(2,"0")}`; chatHistory.push(m); });
+  save("storylab_chatlog", chatHistory);
+}
 
 const GHOSTS = ["보고있어.","보여?","계속 찾고있어","따라가도 돼?","옆에 앉아서 보고있어?","이쪽을 보고 있어","그만 이제 그만 보고싶어"];
 /* 글리치: 일부 글자를 깨뜨려 온전히 못 읽게 */
