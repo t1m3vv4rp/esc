@@ -100,6 +100,22 @@
 
   /* ========== 필통 정리 ========== */
   .pc-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:14px; }
+
+/* 필통 미니게임 v2: 사진+잉크 캔버스 */
+.ink-frame{ position:relative; width:100%; max-width:600px; margin:6px auto 0; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); }
+.ink-photo{
+  width:100%; aspect-ratio:600/340; background:url(assets/mini/bg_pencilcase.jpg) center/cover; image-rendering:pixelated;
+}
+#inkCanvas{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.pc-icon-cell{
+  display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:10px;
+  padding:12px 6px; transition:border-color 0.15s, background 0.15s;
+}
+.pc-icon-cell:hover{ border-color:rgba(255,255,255,0.35); background:rgba(255,255,255,0.09); }
+.pc-icon{ width:40px; height:40px; }
+.pc-icon svg{ width:100%; height:100%; }
+.pc-icon-nm{ font-size:11.5px; color:#e6e6e8; }
   .pc-item{
     display:flex; align-items:center; justify-content:space-between;
     background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08);
@@ -258,127 +274,129 @@ function nagNotif(title, msgs, onClick){
 }
 
 /* ================================================================
-   미니게임 1 — 필통 정리 (정확한 개수 맞추기)
+   미니게임 1 — 필통 정리 (사진 속에 "없는" 아이템 찾기, 6스테이지)
+   ⚠️ IN_PHOTO 값은 실제 사진 확인 후 조정 필요 — true=사진에 있음, false=없음
    ================================================================ */
-const PENCIL_ANSWER = [
-  { key:"매직",   nm:"유성매직(검정)", correct:4 },
-  { key:"볼펜",   nm:"모나미 볼펜(검정)", correct:5 },
-  { key:"네임펜", nm:"네임펜(검정)", correct:4 },
-  { key:"큰가위", nm:"큰 가위", correct:2 },
-  { key:"작가위", nm:"작은 가위", correct:3 },
-  { key:"플라스자",nm:"30cm 플라스틱자", correct:2 },
-  { key:"알루자", nm:"30cm 알루미늄자", correct:1 },
-  { key:"큰커터", nm:"큰 커터칼", correct:2 },
-  { key:"작커터", nm:"작은 커터칼", correct:3 },
-  { key:"화이트", nm:"사쿠라 화이트펜", correct:4 },
-  { key:"연필",   nm:"연필", correct:7 },
-  { key:"샤프",   nm:"샤프", correct:4 },
-];
+const ITEM_ICONS = {
+  유성매직: `<svg viewBox="0 0 40 40"><rect x="17" y="4" width="6" height="22" rx="2" fill="#222"/><path d="M17 26 L23 26 L20 34 Z" fill="#222"/><rect x="16" y="3" width="8" height="5" rx="1" fill="#555"/></svg>`,
+  지우개:   `<svg viewBox="0 0 40 40"><rect x="8" y="14" width="24" height="13" rx="2" fill="#eee" stroke="#999" stroke-width="1"/><rect x="8" y="14" width="24" height="6" fill="#7bb6e0"/></svg>`,
+  수정테이프:`<svg viewBox="0 0 40 40"><rect x="10" y="10" width="14" height="20" rx="3" fill="#f3f3f3" stroke="#999" stroke-width="1"/><rect x="13" y="6" width="8" height="6" rx="1" fill="#ffd23f"/><circle cx="17" cy="20" r="3.5" fill="#ccc"/></svg>`,
+  가위:     `<svg viewBox="0 0 40 40"><circle cx="12" cy="12" r="5" fill="none" stroke="#333" stroke-width="2.5"/><circle cx="12" cy="28" r="5" fill="none" stroke="#333" stroke-width="2.5"/><path d="M16 14 L34 34 M16 26 L34 6" stroke="#333" stroke-width="2.5" stroke-linecap="round"/></svg>`,
+  딱풀:     `<svg viewBox="0 0 40 40"><rect x="12" y="10" width="16" height="22" rx="2" fill="#ffd93d" stroke="#c9a400" stroke-width="1"/><rect x="15" y="4" width="10" height="7" rx="1" fill="#3d7dca"/></svg>`,
+  볼펜:     `<svg viewBox="0 0 40 40"><rect x="18" y="4" width="4" height="24" fill="#2255aa"/><path d="M18 28 L22 28 L20 36 Z" fill="#333"/><rect x="17" y="3" width="6" height="4" fill="#111"/></svg>`,
+  자:       `<svg viewBox="0 0 40 40"><rect x="4" y="16" width="32" height="8" fill="#ffe9a8" stroke="#c9a400" stroke-width="1"/><path d="M8 16 v3 M13 16 v5 M18 16 v3 M23 16 v5 M28 16 v3 M33 16 v5" stroke="#c9a400" stroke-width="1"/></svg>`,
+};
+// 실제 사진 확인 후 true/false 조정하세요
+const IN_PHOTO = {
+  유성매직: false,
+  지우개:   true,
+  수정테이프: false,
+  가위:     true,
+  딱풀:     true,
+  볼펜:     true,
+  자:       false,
+};
+const ALL_ITEMS = Object.keys(ITEM_ICONS);
+const MISSING_ITEMS  = ALL_ITEMS.filter(k=>!IN_PHOTO[k]);
+const PRESENT_ITEMS  = ALL_ITEMS.filter(k=> IN_PHOTO[k]);
+const TOTAL_STAGES = 6;
 
 function startPencil(){
   setBg("bg_pencilcase.jpg");
-  // 시작값: 정답에서 랜덤하게 어긋나게 (최소 6개 품목은 반드시 틀리게 시작)
-  let state;
-  do {
-    state = PENCIL_ANSWER.map(it=>({
-      ...it,
-      cur: Math.max(0, it.correct + (Math.floor(Math.random()*5)-2))
-    }));
-  } while(state.filter(it=>it.cur!==it.correct).length < 6);
-  let wrongCount = 0;
+  let stageNum = 0, wrongTotal = 0;
 
   const panel = document.createElement("div");
   panel.className = "panel";
   panel.innerHTML = `
-    <h2>필통 정리</h2>
-    <div class="sub">운영 기준에 맞게 각 품목의 개수를 맞춰주세요.</div>
-    <div class="pc-grid"></div>
-    <div class="row">
-      <span class="feedback" id="pcFb"></span>
-      <button class="btn" id="pcSubmit">정리 완료</button>
-    </div>`;
+    <h2>필통 정리 <span id="pcStageLabel" style="font-size:11px; opacity:0.6"></span></h2>
+    <div class="sub">사진 속 필통에 <b>없는</b> 물건을 찾아 클릭하세요.</div>
+    <div class="ink-frame">
+      <div class="ink-photo" id="inkPhoto"></div>
+      <canvas id="inkCanvas" width="600" height="340"></canvas>
+    </div>
+    <div class="pc-grid" id="pcIcons" style="grid-template-columns:repeat(4,1fr); margin-top:14px;"></div>
+    <div class="row"><span class="feedback" id="pcFb"></span></div>`;
   stage.appendChild(panel);
-  const grid = panel.querySelector(".pc-grid");
 
-  state.forEach((it, idx)=>{
-    const row = document.createElement("div");
-    row.className = "pc-item";
-    row.innerHTML = `
-      <span class="nm">${it.nm}</span>
-      <div class="pc-stepper">
-        <button data-d="-1">−</button>
-        <span class="pc-count" id="pc${idx}">${it.cur}</span>
-        <button data-d="1">＋</button>
-      </div>`;
-    row.querySelectorAll("button").forEach(b=>{
-      b.addEventListener("click", ()=>{
-        const d = +b.dataset.d;
-        it.cur = Math.max(0, it.cur + d);
-        const cEl = row.querySelector(".pc-count");
-        cEl.textContent = it.cur;
-        // 잉크 번짐 연출 (가끔)
-        if(Math.random() < 0.22){
-          cEl.classList.remove("ink"); void cEl.offsetWidth; cEl.classList.add("ink");
+  const canvas = panel.querySelector("#inkCanvas");
+  const ctx = canvas.getContext("2d");
+  function drawBlot(cx, cy, r){
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = "rgba(8,8,10,0.94)";
+    ctx.beginPath();
+    const spikes = 10;
+    for(let i=0;i<spikes;i++){
+      const ang = (i/spikes)*Math.PI*2;
+      const rad = r * (0.7 + Math.random()*0.5);
+      const px = Math.cos(ang)*rad, py = Math.sin(ang)*rad;
+      i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+    }
+    ctx.closePath(); ctx.fill();
+    // 튀는 작은 점들
+    for(let i=0;i<6;i++){
+      const ang = Math.random()*Math.PI*2, dist = r*(1+Math.random()*0.6);
+      ctx.beginPath();
+      ctx.arc(Math.cos(ang)*dist, Math.sin(ang)*dist, 3+Math.random()*5, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  function splatForStage(n){
+    // 코너 중 하나에서 점점 안쪽으로 번짐
+    const corners = [[40,40],[560,40],[40,300],[560,300],[300,40],[300,300]];
+    const [cx,cy] = corners[n % corners.length];
+    const baseR = 55 + n*26;
+    for(let i=0;i<3;i++){
+      drawBlot(cx + (Math.random()-0.5)*60, cy + (Math.random()-0.5)*60, baseR*(0.55+Math.random()*0.5));
+    }
+  }
+  function splatAt(px, py){ drawBlot(px, py, 34); }
+
+  function renderStage(){
+    stageNum++;
+    panel.querySelector("#pcStageLabel").textContent = `${stageNum} / ${TOTAL_STAGES}`;
+    const missing = MISSING_ITEMS[(stageNum-1) % MISSING_ITEMS.length];
+    const decoyPool = PRESENT_ITEMS.slice();
+    // 셔플 후 3개 선택
+    for(let i=decoyPool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [decoyPool[i],decoyPool[j]]=[decoyPool[j],decoyPool[i]]; }
+    const choices = [missing, ...decoyPool.slice(0,3)];
+    for(let i=choices.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [choices[i],choices[j]]=[choices[j],choices[i]]; }
+
+    const grid = panel.querySelector("#pcIcons");
+    grid.innerHTML = "";
+    choices.forEach(key=>{
+      const cell = document.createElement("div");
+      cell.className = "pc-icon-cell";
+      cell.dataset.key = key;
+      cell.innerHTML = `<div class="pc-icon">${ITEM_ICONS[key]}</div><div class="pc-icon-nm">${key}</div>`;
+      cell.addEventListener("click", (e)=>{
+        if(key===missing){
+          panel.querySelector("#pcFb").textContent = "";
+          if(stageNum>=TOTAL_STAGES){ panel.remove(); onPencilDone(); }
+          else { splatForStage(stageNum-1); renderStage(); }
+        } else {
+          wrongTotal++;
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width/rect.width, scaleY = canvas.height/rect.height;
+          splatAt((e.clientX-rect.left)*scaleX, (e.clientY-rect.top)*scaleY);
+          panel.querySelector("#pcFb").textContent = "그건 있는데...";
+          cell.animate([{transform:"scale(1)"},{transform:"scale(0.9)"},{transform:"scale(1)"}],{duration:180});
+          if(wrongTotal===3){
+            panel.querySelector("#pcFb").textContent = "";
+            say("그래…. 운영자 매뉴얼이 있었지. 이럴 때 봐야겠어.", ()=>{});
+          }
         }
       });
+      grid.appendChild(cell);
     });
-    grid.appendChild(row);
-  });
-
-  panel.querySelector("#pcSubmit").addEventListener("click", ()=>{
-    const allOk = state.every(it=> it.cur === it.correct);
-    const fb = panel.querySelector("#pcFb");
-    if(allOk){
-      panel.remove();
-      onPencilDone();
-    } else {
-      wrongCount++;
-      const wrong = state.filter(it=>it.cur!==it.correct).length;
-      fb.textContent = `아직 ${wrong}개 품목이 안 맞아요.`;
-      stage.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:220});
-      if(wrongCount >= 3){
-        panel.remove();
-        say("그래…. 운영자 매뉴얼이 있었지. 이럴 때 봐야겠어.", ()=>{
-          // 다시 패널 (플레이어는 개인 노션에서 정답 확인)
-          startPencilRetry(state);
-        });
-      }
-    }
-  });
-}
-function startPencilRetry(prevState){
-  // 매뉴얼 본 뒤 재도전: 같은 state 유지, 패널만 재생성
-  const panel = document.createElement("div");
-  panel.className="panel";
-  panel.innerHTML = `
-    <h2>필통 정리 <span style="font-size:11px;opacity:0.6">· 매뉴얼 확인함</span></h2>
-    <div class="sub">운영 기준에 맞게 각 품목의 개수를 맞춰주세요.</div>
-    <div class="pc-grid"></div>
-    <div class="row"><span class="feedback" id="pcFb2"></span><button class="btn" id="pcSubmit2">정리 완료</button></div>`;
-  stage.appendChild(panel);
-  const grid = panel.querySelector(".pc-grid");
-  prevState.forEach((it)=>{
-    const row=document.createElement("div"); row.className="pc-item";
-    row.innerHTML=`<span class="nm">${it.nm}</span>
-      <div class="pc-stepper"><button data-d="-1">−</button>
-      <span class="pc-count">${it.cur}</span><button data-d="1">＋</button></div>`;
-    row.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
-      it.cur=Math.max(0,it.cur+ +b.dataset.d);
-      row.querySelector(".pc-count").textContent=it.cur;
-    }));
-    grid.appendChild(row);
-  });
-  panel.querySelector("#pcSubmit2").addEventListener("click",()=>{
-    if(prevState.every(it=>it.cur===it.correct)){ panel.remove(); onPencilDone(); }
-    else { panel.querySelector("#pcFb2").textContent="아직 안 맞는 품목이 있어요.";
-      stage.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:220}); }
-  });
+  }
+  renderStage();
 }
 function onPencilDone(){
   saveGame("figure");
   nvlog("pencil_done", {});
   say("정리 끝. 이제 좀 낫네.", ()=>{
-    // 다음 미니게임 예고 알림
     setTimeout(startFigureIntro, 900);
   });
 }
