@@ -169,7 +169,7 @@ async function run(){
 
   await sleep(1600);
   await new Promise(res=> say([
-    "지금, 방금 왔다.",
+    "누구지...?",
     "…내가 보고 있는데.",
   ], res));
 

@@ -263,6 +263,15 @@
   #gateLayer h1{ font-size:15px; letter-spacing:0.35em; color:#c1121f; margin-bottom:16px; }
   #gateLayer p{ font-size:13px; color:#9a9aa0; line-height:2; }
   #gateLayer .small{ display:inline-block; margin-top:26px; font-size:11px; color:#5a5a60; cursor:pointer; text-decoration:underline; }
+
+  /* 인트로 독백 (홈 화면 진입 시) */
+  #introMono{
+    position:fixed; z-index:150; left:50%; bottom:6vh; transform:translateX(-50%);
+    background:rgba(245,243,238,0.97); color:#161616;
+    padding:14px 24px; border-radius:10px; font-size:15px; max-width:80%;
+    box-shadow:0 4px 0 rgba(0,0,0,0.55); display:none; text-align:center; cursor:pointer;
+  }
+  #introMono .hint{ display:block; font-size:10px; opacity:0.5; margin-top:6px; letter-spacing:0.2em; }
 </style>
 </head>
 <body>
@@ -384,6 +393,8 @@
 <div id="macNotif"></div>
 <div id="blackout"></div>
 <div id="dissolve"></div>
+
+<div id="introMono"><span class="mtxt"></span><span class="hint">[ 클릭 ]</span></div>
 
 <script src="telemetry.js"></script>
 <script src="intro.js"></script>

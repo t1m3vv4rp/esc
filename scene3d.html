@@ -38,12 +38,9 @@
   }
   #dialog .hint { display:block; margin-top:8px; font-size:11px; opacity:0.55; letter-spacing:0.2em; }
   #startOverlay {
-    position:fixed; inset:0; z-index:20; background:#000; color:#9a9a9a;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
-    font-family:"Courier New", monospace; letter-spacing:0.14em; cursor:pointer;
+    position:fixed; inset:0; z-index:20; background:transparent;
+    cursor:pointer;
   }
-  #startOverlay .t1 { font-size:14px; color:#c1121f; }
-  #startOverlay .t2 { font-size:12px; opacity:0.75; line-height:2.2; text-align:center; }
   #fade { position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; z-index:15; transition:opacity 1.2s ease; }
   #redflash { position:fixed; inset:0; background:rgba(160,10,20,0.35); opacity:0; pointer-events:none; z-index:14; }
 </style>
@@ -54,16 +51,12 @@
 <div id="fade"></div>
 <div id="redflash"></div>
 <div id="dialog"><span class="txt"></span><span class="hint">[ SPACE ]</span></div>
-<div id="startOverlay">
-  <div class="t1">3F — STORYLAB</div>
-  <div class="t2">클릭하여 들어가기<br><br>이동: W A S D &nbsp;/&nbsp; 시점: 마우스 &nbsp;/&nbsp; 대사 진행: SPACE</div>
-</div>
+<div id="startOverlay"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 /* ==================================================================
-   클라이맥스 3D — 좁은 ㄹ자 외길 (손그림 지도 기반)
-   입구커튼 → 동쪽 → 남쪽 → 동쪽(책장벽) → 북쪽(창가) → X(존재)
+   클라이맥스 3D — 입구 복도 → (우회전) 큰 방 → 창가 → (좌회전) 트리거 공간
    ================================================================== */
 const PIXEL_SCALE = 0.28;
 const WALK_SPEED  = 1.0;
@@ -87,7 +80,8 @@ addEventListener("resize", ()=>{
 });
 
 /* ---------- 조명 ---------- */
-scene.add(new THREE.AmbientLight(0x0a0a0c, 0.45));
+const ambientLight = new THREE.AmbientLight(0x0a0a0c, 0.45);
+scene.add(ambientLight);
 const flash = new THREE.SpotLight(0xfff2d8, 1.4, 14, Math.PI/8, 0.6, 1.7);
 const flashTarget = new THREE.Object3D();
 scene.add(flash, flashTarget); flash.target = flashTarget;
@@ -105,6 +99,10 @@ const T = {
   vinyl:   loadTex("assets/textures/vinyl.jpg"),
   vinyl2:  loadTex("assets/textures/vinyl2.jpg"),
   wood:    loadTex("assets/textures/shelfwood.jpg"),
+  drapeChair:   loadTex("assets/textures/drape_chair.jpg"),
+  drapeCurtain: loadTex("assets/textures/drape_curtain.jpg", 1, 1),
+  drapeDome:    loadTex("assets/textures/drape_dome.jpg"),
+  drapeBench:   loadTex("assets/textures/drape_bench.jpg"),
 };
 
 /* ---------- 재질 ---------- */
@@ -112,19 +110,25 @@ const matFloor = new THREE.MeshPhongMaterial({ color:0x141416, shininess:10 });
 const matWall  = new THREE.MeshPhongMaterial({ color:0x1e1e21, shininess:4 });
 const matCeil  = new THREE.MeshPhongMaterial({ color:0x0e0e10, shininess:2 });
 const matWater = new THREE.MeshPhongMaterial({ color:0x020204, shininess:140, specular:0x223344 });
+const matAlFloor = new THREE.MeshPhongMaterial({ color:0xb7b6ac, shininess:55, specular:0xe8e6da });
 const matVinyl = new THREE.MeshPhongMaterial({ map:T.vinyl,  color:0x555558, shininess:85, specular:0x8a94a0 });
 const matVinyl2= new THREE.MeshPhongMaterial({ map:T.vinyl2, color:0x55555a, shininess:85, specular:0x8a94a0 });
 const matWood  = new THREE.MeshPhongMaterial({ map:T.wood, color:0x8a8a8a, shininess:6 });
+const matDarkWood = new THREE.MeshPhongMaterial({ color:0x2a1c12, shininess:14, specular:0x443322 });
 const matSlat  = new THREE.MeshPhongMaterial({ color:0x121214, shininess:4 });
+const matDrapeChair   = new THREE.MeshPhongMaterial({ map:T.drapeChair,   color:0x9a9a9a, shininess:95, specular:0xb9c4d4, side:THREE.DoubleSide });
+const matDrapeCurtain = new THREE.MeshPhongMaterial({ map:T.drapeCurtain, color:0x9a9a9a, shininess:80, specular:0xaab6c8, side:THREE.DoubleSide, transparent:true, opacity:0.96 });
+const matDrapeDome    = new THREE.MeshPhongMaterial({ map:T.drapeDome,    color:0x9d9d9d, shininess:100, specular:0xc4cede });
+const matDrapeBench   = new THREE.MeshPhongMaterial({ map:T.drapeBench,   color:0x8f9a8f, shininess:90, specular:0xa8c4b0, side:THREE.DoubleSide });
+const matLeg = new THREE.MeshPhongMaterial({ color:0x3a2c1e, shininess:8 });
 
-/* ---------- 지도: 좁은 ㄹ자 외길 (폭 1.5m) ----------
-   L1 동쪽 → L2 남쪽 → L3 동쪽(책장) → L4 북쪽(창가) → ALCOVE(X)   */
+/* ---------- 지도: 입구 복도(동) → 우회전 → 큰 방(남, 창가) → 좌회전 → 알코브(X) ---------- */
 const ROOMS = [
-  { id:"L1", x1:0,    x2:5.5, z1:-0.75, z2:0.75 },
-  { id:"L2", x1:4,    x2:5.5, z1:-0.75, z2:7.0  },
-  { id:"L3", x1:4,    x2:15,  z1:5.5,   z2:7.0  },
-  { id:"L4", x1:13.5, x2:15,  z1:-6.5,  z2:7.0  },
-  { id:"AL", x1:12,   x2:15,  z1:-8.5,  z2:-5.9 },
+  { id:"IN", x1:0,    x2:6.3,  z1:-0.55, z2:0.55 },   // 입구 복도 (약 6m, 6초)
+  { id:"CN1",x1:5.0,  x2:6.6,  z1:0.1,   z2:1.0  },   // 연결통로 (IN↔RM 이음매)
+  { id:"RM", x1:5.3,  x2:11.6, z1:0.4,   z2:15.7 },   // 큰 방 (약 15m 세로, 15초) — 남쪽 끝이 창가
+  { id:"CN2",x1:11.0, x2:12.2, z1:11.8,  z2:15.9 },   // 연결통로 (RM↔AL 이음매)
+  { id:"AL", x1:11.6, x2:14.8, z1:12.0,  z2:15.7 },   // 알코브 (트리거 장소, X)
 ];
 function insideAnyRoom(x,z){
   const M = 0.2;
@@ -137,23 +141,27 @@ function box(w,h,d, mat, x,y,z){
 /* 바닥/천장 */
 ROOMS.forEach(r=>{
   const w=r.x2-r.x1, d=r.z2-r.z1, cx=(r.x1+r.x2)/2, cz=(r.z1+r.z2)/2;
-  box(w,0.1,d, r.id==="AL"?matWater:matFloor, cx,-0.05,cz);
+  box(w,0.1,d, (r.id==="AL"||r.id==="CN2")?matAlFloor:matFloor, cx,-0.05,cz);
   box(w,0.1,d, matCeil, cx, CEIL_H+0.05, cz);
 });
 /* 벽 (개구부 남기고 수동 배치) */
 const W=0.12, HC=CEIL_H/2;
-box(5.5,CEIL_H,W, matWall, 2.75,HC,-0.75);        // L1 북벽
-box(4.0,CEIL_H,W, matWall, 2.0, HC, 0.75);        // L1 남벽 (동쪽 끝 개구부→L2)
-box(W,CEIL_H,1.5, matWall, 0,   HC, 0);           // L1 서쪽 캡 (입구 뒤)
-box(W,CEIL_H,4.75,matWall, 4,   HC, 3.125);       // L2 서벽 (z0.75~5.5)
-box(W,CEIL_H,6.25,matWall, 5.5, HC, 2.375);       // L2 동벽 (z-0.75~5.5)
-box(8.0,CEIL_H,W, matWall, 9.5, HC, 5.5);         // L3 북벽 (x5.5~13.5)
-box(11.0,CEIL_H,W,matWall, 9.5, HC, 7.0);         // L3 남벽 (x4~15)
-box(W,CEIL_H,11.4,matWall, 13.5,HC, -0.2);        // L4 서벽 (z-5.9~5.5)
-box(W,CEIL_H,15.5,matWall, 15,  HC, -0.75);       // L4+AL 동벽 (z-8.5~7)
-box(3.0,CEIL_H,W, matWall, 13.5,HC,-8.5);         // AL 북벽
-box(W,CEIL_H,2.6, matWall, 12,  HC,-7.2);         // AL 서벽
-box(1.5,CEIL_H,W, matWall, 12.75,HC,-5.9);        // AL 남벽 (x12~13.5)
+box(6.3,CEIL_H,W, matWall, 3.15, HC, -0.55);      // IN 북벽
+box(5.3,CEIL_H,W, matWall, 2.65, HC, 0.55);       // IN 남벽 (동쪽 끝 x5.3~6.3 개구부→RM)
+box(W,CEIL_H,1.1, matWall, -0.02, HC, 0);         // IN 서쪽 캡 (입구 뒤)
+box(W,CEIL_H,14.2,matWall, 5.3, HC, 8.6);         // RM 서벽 (z1.5~15.7, 위쪽은 IN 연결 개구부)
+box(5.3,CEIL_H,W, matWall, 8.95, HC, 0.4);        // RM 북벽 (x6.3~11.6, 서쪽은 IN 연결 개구부)
+box(6.3,CEIL_H,W, matWall, 8.45, HC, 15.7);       // RM 남벽 (= 창가 벽, 전체 막힘)
+box(W,CEIL_H,11.6,matWall, 11.6, HC, 6.2);        // RM 동벽 (z0.4~12.0, 아래쪽은 AL 연결 개구부)
+box(3.2,CEIL_H,W, matWall, 13.2, HC, 12.0);       // AL 북벽
+box(W,CEIL_H,3.7, matDarkWood, 14.8, HC, 13.85);   // AL 동벽 (사진 속 우측 나무벽)
+{ // 사진 속 작은 어두운 창문 (동벽)
+  const winFrame = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.55,0.42), matSlat);
+  winFrame.position.set(14.76, 1.55, 13.2); scene.add(winFrame);
+  const winGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.44), new THREE.MeshBasicMaterial({ color:0x030303, side:THREE.DoubleSide }));
+  winGlass.position.set(14.74, 1.55, 13.2); scene.add(winGlass);
+}
+box(3.2,CEIL_H,W, matWall, 13.2, HC, 15.7);       // AL 남벽 (창가 벽 연장선)
 
 /* ---------- 입구 커튼 (통과 가능) ---------- */
 const curtain = new THREE.Mesh(
@@ -175,29 +183,27 @@ function bookshelf(x,z,ry,w=2.2){
   }
   g.position.set(x,0,z); g.rotation.y = ry; scene.add(g);
 }
-bookshelf(7.0, 5.72, 0);       // L3 북벽 안쪽 (지도의 가운데 책장 벽)
-bookshelf(9.6, 5.72, 0);
-bookshelf(12.1, 5.72, 0, 1.8);
-bookshelf(5.28, 3.4, Math.PI/2, 1.8);   // L2 동벽
-bookshelf(12.2, -6.6, Math.PI/2, 1.6);  // 알코브 서벽 근처
+bookshelf(5.5, 5.0, Math.PI/2, 2.0);    // RM 서벽 안쪽
+bookshelf(5.5, 10.0, Math.PI/2, 2.0);
+bookshelf(13.0, 13.0, 0, 1.6);          // AL 북벽 안쪽
 
-/* ---------- 창가 (동벽, 기하 창문 + 희미한 빛) ---------- */
-function windowUnit(z){
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.5, 1.3), matSlat);
-  frame.position.set(14.95, 1.5, z); scene.add(frame);
+/* ---------- 창가 (RM 남벽, 기하 창문 + 희미한 빛) ---------- */
+function windowUnit(x){
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.5, 0.08), matSlat);
+  frame.position.set(x, 1.5, 15.68); scene.add(frame);
   const glass = new THREE.Mesh(
     new THREE.PlaneGeometry(1.16, 1.36),
-    new THREE.MeshBasicMaterial({ color:0x1c2733 })
+    new THREE.MeshBasicMaterial({ color:0x1c2733, side:THREE.DoubleSide })
   );
-  glass.position.set(14.9, 1.5, z); glass.rotation.y = -Math.PI/2; scene.add(glass);
+  glass.position.set(x, 1.5, 15.64); scene.add(glass);
   for(let i=-1;i<=1;i++){
     const bar = new THREE.Mesh(new THREE.BoxGeometry(0.03,1.4,0.05), matSlat);
-    bar.position.set(14.89, 1.5, z + i*0.32); scene.add(bar);
+    bar.position.set(x + i*0.32, 1.5, 15.63); scene.add(bar);
   }
 }
-windowUnit(1.2); windowUnit(3.2);
+windowUnit(7.0); windowUnit(9.9);
 
-/* ---------- 비닐 둔덕 (저폴리 음각 덩어리) ---------- */
+/* ---------- 비닐 둔덕 (저폴리 음각 덩어리, 뭉친 쿠션류) ---------- */
 function mound(x,z,r,sy=0.65,mat=matVinyl){
   const geo = new THREE.IcosahedronGeometry(r, 1);
   const pos = geo.attributes.position;
@@ -212,56 +218,178 @@ function mound(x,z,r,sy=0.65,mat=matVinyl){
   m.rotation.y = Math.random()*Math.PI;
   scene.add(m); return m;
 }
-/* 지도의 '비닐' 표기 위치대로 */
-mound(2.6, -0.55, 0.55);                 // 입구 지나 북벽 쪽
-mound(4.35, 1.9, 0.5, 0.6, matVinyl2);   // L2 코너
-mound(4.4, 4.6, 0.45);
-mound(7.8, 6.85, 0.6, 0.7, matVinyl2);   // L3 남벽 따라
-mound(10.6, 6.9, 0.55);
-mound(13.65, 4.6, 0.45, 0.6, matVinyl2); // L4 초입
-mound(12.5, -7.5, 0.95, 0.75);           // 알코브 (X 주변 큰 더미)
-mound(14.55, -7.9, 0.8, 0.7, matVinyl2);
-mound(14.5, -6.2, 0.5);
+
+/* ---------- 대각선 비닐 덮인 의자 (사진 속 그 실루엣) ---------- */
+function drapeChair(x,z,ry){
+  const g = new THREE.Group();
+  // 다리 (나무 우드톤, 비닐 아래로 살짝 삐져나옴)
+  const legGeo = new THREE.CylinderGeometry(0.025,0.03,0.42,5);
+  [[-0.19,-0.19],[0.19,-0.19],[-0.19,0.19],[0.19,0.19]].forEach(([lx,lz])=>{
+    const leg = new THREE.Mesh(legGeo, matLeg);
+    leg.position.set(lx,0.21,lz); g.add(leg);
+  });
+  // 좌판 본체 (뭉뚝한 박스)
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.46,0.42,0.46), matDrapeChair);
+  seat.position.y = 0.42+0.21; g.add(seat);
+  // 대각선으로 팽팽히 당겨진 비닐 (등받이~앞쪽으로 비스듬히)
+  const drape = new THREE.Mesh(new THREE.PlaneGeometry(0.72,0.66,3,3), matDrapeChair);
+  drape.position.set(0, 0.72, 0.02);
+  drape.rotation.x = -Math.PI/2.7;
+  drape.rotation.z = 0.08;
+  g.add(drape);
+  const drapeBack = new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.5), matDrapeChair);
+  drapeBack.position.set(0, 0.62, -0.28);
+  drapeBack.rotation.x = Math.PI/2.9;
+  g.add(drapeBack);
+  g.position.set(x,0,z); g.rotation.y = ry;
+  scene.add(g); return g;
+}
+
+/* ---------- 세로로 늘어진 비닐 커튼 (물결치는 드레이프) ---------- */
+function drapeCurtain(x,z,ry,w=1.1,h=2.1){
+  const seg = 8;
+  const geo = new THREE.PlaneGeometry(w,h,seg,1);
+  const pos = geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const u = pos.getX(i)/w; // -0.5~0.5
+    const fold = Math.sin(u*Math.PI*3.1)*0.075 + Math.sin(u*Math.PI*7)*0.025;
+    pos.setZ(i, fold);
+  }
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, matDrapeCurtain);
+  m.position.set(x, h/2, z); m.rotation.y = ry;
+  scene.add(m); return m;
+}
+
+/* ---------- 둥근 돔형 오브제 (비닐 덮인 램프/조명) ---------- */
+function drapeDome(x,z,r=0.32){
+  const geo = new THREE.SphereGeometry(r, 8, 6, 0, Math.PI*2, 0, Math.PI/1.7);
+  const m = new THREE.Mesh(geo, matDrapeDome);
+  m.position.set(x, r*0.15, z);
+  scene.add(m); return m;
+}
+
+/* ---------- 늘어진 벤치형 드레이프 (긴 가구 위에 비스듬히 덮임) ---------- */
+function drapeBench(x,z,ry,w=1.3){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w,0.4,0.5), matLeg);
+  body.position.y = 0.2; g.add(body);
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(w*1.08,0.62,4,2), matDrapeBench);
+  top.position.set(0, 0.42, 0.05);
+  top.rotation.x = -Math.PI/2.5;
+  g.add(top);
+  const side = new THREE.Mesh(new THREE.PlaneGeometry(0.56,0.5), matDrapeBench);
+  side.position.set(-w/2-0.02, 0.28, 0);
+  side.rotation.y = Math.PI/2;
+  g.add(side);
+  g.position.set(x,0,z); g.rotation.y = ry;
+  scene.add(g); return g;
+}
+
+/* 지도의 '비닐' 표기 4곳 기준 배치 */
+mound(6.0, 1.3, 0.5);                      // ① 입구~방 진입부 비닐
+drapeBench(8.4, 7.2, 0, 1.5);              // ② 방 중간 비닐 (늘어진 벤치)
+drapeCurtain(6.1, 7.4, Math.PI/2, 1.0, 2.0);
+drapeChair(10.2, 13.2, Math.PI*0.4);       // ③ 직원-비닐 (방→알코브 꺾임 지점)
+mound(10.7, 14.0, 0.5, 0.6, matVinyl2);
+mound(13.6, 14.7, 0.9, 0.75);              // ④ X 주변 비닐 (알코브)
+drapeBench(11.7, 13.0, Math.PI*0.12, 1.2); // 사진 구도: 진입 시점 왼쪽 드레이프 벤치
+drapeDome(13.0, 12.85, 0.3);               // 사진 구도: 진입 시점 오른쪽 전경 돔
 
 /* ---------- 검은 물 ---------- */
 function puddle(x,z,r){
   const m = new THREE.Mesh(new THREE.CircleGeometry(r, 12), matWater);
   m.rotation.x = -Math.PI/2; m.position.set(x, 0.011, z); scene.add(m);
 }
-puddle(14.2,-3.2,0.5); puddle(13.9,-1.0,0.4); puddle(14.4,-5.0,0.65);
-puddle(4.7,3.0,0.35);
+puddle(13.0,14.0,0.5); puddle(14.1,13.6,0.4); puddle(9.0,15.1,0.45);
+puddle(7.0,10.0,0.35);
 function streak(x,y,z,ry,w,h){
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h), matWater);
   m.position.set(x,y,z); m.rotation.y = ry; scene.add(m);
 }
-streak(14.94,1.2,-7.0,-Math.PI/2,0.35,2.4);
-streak(13.5+0.07,1.4,-4.0,Math.PI/2,0.25,2.3);
-streak(12.06,1.3,-7.0,Math.PI/2,0.4,2.5);
+streak(14.74,1.2,14.0,-Math.PI/2,0.3,2.2);
+streak(13.0,1.3,12.06,0,0.4,2.3);
+streak(8.45,1.3,15.64,0,0.35,2.2);
 
-/* 컷씬용 물줄기: 알코브 쪽(북)에서 플레이어 발 밑으로 */
-const stream = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 1), matWater.clone());
+/* 컷씬용 물줄기: 알코브(동쪽) 방향에서 플레이어 발 밑으로 */
+const stream = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.34), matWater.clone());
 stream.rotation.x = -Math.PI/2;
 stream.visible = false;
 scene.add(stream);
 
-/* ---------- 존재 (다리 실루엣) ---------- */
+/* ---------- 존재 (다리 실루엣 — 불안정한 흑적 노이즈로 깜빡임) ---------- */
 const entity = new THREE.Group();
-const legMat = new THREE.MeshPhongMaterial({ color:0x050507, shininess:60, specular:0x1a2230 });
-const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,0.9,6), legMat);
+const matEntityLeg = new THREE.MeshPhongMaterial({ color:0x050507, shininess:60, specular:0x1a2230 });
+const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,0.9,6), matEntityLeg);
 const legR = legL.clone();
 legL.position.set(-0.13,0.45,0); legR.position.set(0.13,0.45,0);
 entity.add(legL, legR);
-entity.position.set(13.5, 0, -7.9);
+entity.position.set(13.8, 0, 15.4);   // 사진 속 붉은 빛이 있던 자리
 scene.add(entity);
+
+// 멀리서도 보이는 붉은 빛 (사진 속 그 작은 빨간 점) — 항상 은은하게, 가끔 깜빡임
+const entityGlow = new THREE.PointLight(0xc41220, 0.55, 3.2, 2.2);
+entityGlow.position.set(13.8, 0.55, 15.4);
+scene.add(entityGlow);
+
+// 노이즈 텍스처 (다리 자리에 겹쳐지는 검은/붉은 정전기 노이즈)
+const noiseCanvas = document.createElement("canvas");
+noiseCanvas.width = 20; noiseCanvas.height = 44;
+const nctx = noiseCanvas.getContext("2d");
+const noiseTex = new THREE.CanvasTexture(noiseCanvas);
+noiseTex.magFilter = THREE.NearestFilter; noiseTex.minFilter = THREE.NearestFilter;
+function drawEntityNoise(){
+  for(let y=0;y<44;y++){
+    for(let x=0;x<20;x++){
+      const r = Math.random();
+      nctx.fillStyle = r<0.45 ? "#020203" : (r<0.8 ? "#170a0b" : (r<0.94 ? "#8a0f16" : "#c4222b"));
+      nctx.fillRect(x,y,1,1);
+    }
+  }
+  noiseTex.needsUpdate = true;
+}
+drawEntityNoise();
+const noisePlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.3, 0.92),
+  new THREE.MeshBasicMaterial({ map:noiseTex, transparent:true, opacity:0.96, side:THREE.DoubleSide })
+);
+noisePlane.position.set(0, 0.46, 0);
+noisePlane.visible = false;
+entity.add(noisePlane);
+
+// 깜빡임 상태기: 다리(그럴듯함) ↔ 노이즈(불안정) ↔ 순간 소실("방금 뭐였지?")
+let entityFlickerT = 0.4;
+function updateEntityFlicker(dt){
+  entityFlickerT -= dt;
+  if(entityFlickerT > 0) return;
+  const r = Math.random();
+  if(r < 0.5){
+    // 평상시: 다리처럼 보임
+    legL.visible = true; legR.visible = true; noisePlane.visible = false;
+    entityGlow.intensity = 0.5 + Math.random()*0.15;
+    entityFlickerT = 0.5 + Math.random()*1.1;
+  } else if(r < 0.85){
+    // 노이즈로 전환 (불안정한 흑/적 정전기)
+    drawEntityNoise();
+    legL.visible = false; legR.visible = false; noisePlane.visible = true;
+    entityGlow.intensity = 0.9 + Math.random()*0.5;
+    entityFlickerT = 0.05 + Math.random()*0.12;
+  } else {
+    // 찰나의 소실 — "방금 사람이었나?"
+    legL.visible = false; legR.visible = false; noisePlane.visible = false;
+    entityGlow.intensity = 0.15;
+    entityFlickerT = 0.04 + Math.random()*0.08;
+  }
+}
 
 /* ---------- 먼지 ---------- */
 const DUST_N = 380;
 const dustGeo = new THREE.BufferGeometry();
 const dustPos = new Float32Array(DUST_N*3);
 for(let i=0;i<DUST_N;i++){
-  dustPos[i*3]   = -0.5 + Math.random()*16;
+  dustPos[i*3]   = -0.5 + Math.random()*15.5;
   dustPos[i*3+1] = Math.random()*CEIL_H;
-  dustPos[i*3+2] = -8.5 + Math.random()*16;
+  dustPos[i*3+2] = -1 + Math.random()*17;
 }
 dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos,3));
 const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
@@ -356,29 +484,29 @@ function checkTriggers(){
       if(curtain.material.opacity<=0){ curtain.visible=false; clearInterval(iv); }
     }, 40);
   });
-  // 책장 복도(L3) 진입
-  if(x > 5.9 && z > 5.6) once("corridor", ()=>{
+  // 우회전하여 큰 방 진입
+  if(x > 6.4 && z > 0.6) once("corridor", ()=>{
     showDialog([
-      {who:"entity", text:"비닐에 쌓여있지만, 만져보면 미끌거릴 것 같아."},
-      {who:"entity", text:"소름끼치고 기괴해. 흐르는 것 같아."},
+      {who:"entity", text:"비닐에 쌓여있는 가구들."},
+      {who:"entity", text:"어딘가 소름이 끼친다."},
     ]);
   });
-  // L4에서 창문(동쪽) 응시 → 컷씬
-  if(x > 13.6 && z < 4.8 && z > -3 && !fired["window"]){
-    const facingEast = Math.sin(player.yaw) < -0.85;   // 전방 x = -sin(yaw)
-    if(facingEast && Math.abs(player.pitch) < 0.5) once("window", windowCutscene);
+  // 창가(남벽) 도착, 남쪽을 보고 있으면 → 컷씬
+  if(z > 14.2 && x < 11.6 && !fired["window"]){
+    const facingSouth = Math.cos(player.yaw) < -0.85;   // 전방 z = -cos(yaw)
+    if(facingSouth && Math.abs(player.pitch) < 0.5) once("window", windowCutscene);
   }
-  // 창문 안 보고 알코브 접근 시 강제 발동
-  if(!fired["window"] && x > 13.6 && z < -3.5) once("window", windowCutscene);
-  // 알코브 진입 → 최종
-  if(fired["window"] && z < -6.0 && x > 12.2) once("finale", finaleSequence);
+  // 창밖을 안 보고 좌회전하여 알코브로 바로 접근 시 강제 발동
+  if(!fired["window"] && x > 11.7) once("window", windowCutscene);
+  // 알코브(트리거 장소) 진입 → 최종
+  if(fired["window"] && x > 13.0 && z > 13.5) once("finale", finaleSequence);
 }
 
 /* ---------- 컷씬 1: 창밖 응시 ---------- */
 function windowCutscene(){
   const p0 = player.pitch, y0 = player.yaw;
   playCutscene([
-    { dur:1.1, from:{pitch:p0,yaw:y0}, to:{pitch:0,yaw:-Math.PI/2},
+    { dur:1.1, from:{pitch:p0,yaw:y0}, to:{pitch:0,yaw:Math.PI},
       onEnd:()=>{ showDialog([{who:"entity", text:"발 밑이 축축하다. 여기… 있어."}], cutStep2); } },
   ]);
   function cutStep2(){
@@ -386,15 +514,15 @@ function windowCutscene(){
       { dur:1.6, from:{pitch:player.pitch, yaw:player.yaw}, to:{pitch:-1.25, yaw:player.yaw},
         onEnd:()=>{
           stream.visible = true;
-          stream.position.x = player.x;
+          stream.position.z = player.z;
           let s = 0.05;
+          const xStart = 11.6;   // 알코브(동쪽) 방향에서 시작
           const iv = setInterval(()=>{
             s += 0.5;
-            const zStart = -5.5;
-            const len = Math.min(s, (player.z - 0.35) - zStart);
-            stream.scale.y = len;
-            stream.position.z = zStart + len/2;
-            if(len >= (player.z-0.35)-zStart) clearInterval(iv);
+            const len = Math.min(s, xStart - (player.x + 0.35));
+            stream.scale.x = len;
+            stream.position.x = xStart - len/2;
+            if(len >= xStart - (player.x+0.35)) clearInterval(iv);
           }, 50);
         } },
       { dur:2.6, from:{pitch:-1.25,yaw:player.yaw}, to:{pitch:-1.25,yaw:player.yaw} },
@@ -408,14 +536,46 @@ function windowCutscene(){
 const fadeEl = document.getElementById("fade");
 const redEl  = document.getElementById("redflash");
 let shakeAmt = 0;
+
+// 파이널 진입 시, 참고 사진과 동일한 구도로 카메라를 고정 스냅
+const PHOTO_VANTAGE = { x:12.2, z:12.6 };
+function snapToPhotoVantage(onDone){
+  const dx = entity.position.x - PHOTO_VANTAGE.x;
+  const dz = entity.position.z - PHOTO_VANTAGE.z;
+  const targetYaw = Math.atan2(-dx, -dz);
+  const x0=player.x, z0=player.z, y0=player.yaw, p0=player.pitch;
+  let t=0; const dur=900;
+  const iv = setInterval(()=>{
+    t += 16;
+    const k = Math.min(1, t/dur);
+    const e = k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+    player.x = x0 + (PHOTO_VANTAGE.x-x0)*e;
+    player.z = z0 + (PHOTO_VANTAGE.z-z0)*e;
+    player.yaw = y0 + (targetYaw-y0)*e;
+    player.pitch = p0 + (0-p0)*e;
+    if(k>=1){ clearInterval(iv); onDone && onDone(); }
+  }, 16);
+}
+
 function finaleSequence(){
   controlLocked = true;
+  fadeEl.style.transition = "opacity 0.5s ease";
+  fadeEl.style.opacity = 1;
+  setTimeout(()=>{
+    snapToPhotoVantage(()=>{
+      fadeEl.style.opacity = 0;
+      setTimeout(()=>{ fadeEl.style.transition = ""; runFinaleDialogue(); }, 300);
+    });
+  }, 350);
+}
+
+function runFinaleDialogue(){
   showDialog([
-    {who:"entity", text:"당신은"},
     {who:"entity", text:"결국"},
+    {who:"entity", text:"나를"},
     {who:"entity", text:"이곳을"},
     {who:"entity", text:"보고있다."},
-    {who:"entity", text:"두통에 괴로운듯 머리를 부여잡는다."},
+    {who:"entity", text:"머리가 지끈거린다."},
   ], ()=>{
     playCutscene([
       { dur:1.6, from:{pitch:player.pitch,yaw:player.yaw}, to:{pitch:-1.3,yaw:player.yaw},
@@ -455,6 +615,13 @@ function loop(){
   const dt = Math.min(0.05, clock.getDelta());
   const t = clock.elapsedTime;
   updateCutscene(dt);
+  updateEntityFlicker(dt);
+
+  // 알코브(트리거 공간) 진입 시 조도 낮춤
+  const inAlcove = player.x > 11.6;
+  ambientLight.intensity += ((inAlcove?0.22:0.45) - ambientLight.intensity) * Math.min(1, dt*2);
+  flash.intensity += ((inAlcove?1.0:1.4) - flash.intensity) * Math.min(1, dt*2);
+  flash.distance  += ((inAlcove?8:14)   - flash.distance)  * Math.min(1, dt*2);
 
   if(!controlLocked && !cutscene.active && document.pointerLockElement){
     let mx=0, mz=0;

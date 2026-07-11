@@ -47,7 +47,7 @@ document.getElementById("hsTumbler").addEventListener("click", function(){
   say([
     "유진님의 텀블러다. 뚜껑이 반쯤 열려 있다.",
     "…물이 담겨 있는데, 바닥이 보이지 않을 만큼 검다.",
-    "커피는 아니다. 냄새도 나지 않는다.",
+    "검은 액체. 액체가 있다는 감각도 없을 정도로 검다.",
   ]);
 });
 
@@ -386,7 +386,9 @@ const slLog=document.getElementById("slLog");
 function todaySlackTime(h,m){
   return `${h<12?"오전":"오후"} ${((h+11)%12)+1}:${String(m).padStart(2,"0")}`;
 }
-(function renderSlack(){
+function renderOOO(){
+  document.getElementById("slHead").textContent = "OOO";
+  slLog.innerHTML = "";
   const items=[
     {nm:"OOO", tm:todaySlackTime(11,42), lines:[`${playerName}님과 점심 같이 드실래요?`,"오랜만에 어고집밥 갈까요?"]},
     {nm:"김유진 (스스라 인턴)", me:true, tm:todaySlackTime(11,44), lines:["좋아요~","우동 먹고싶기도 해요"]},
@@ -403,7 +405,10 @@ function todaySlackTime(h,m){
     el.appendChild(av); el.appendChild(body);
     slLog.appendChild(el);
   });
-})();
+  document.getElementById("slOOO").classList.add("active");
+  document.getElementById("slLoading").classList.remove("active");
+}
+renderOOO();
 /* 로딩 안 되는 DM 클릭 */
 document.getElementById("slLoading").addEventListener("click", ()=>{
   document.getElementById("slHead").textContent="…";
@@ -411,17 +416,36 @@ document.getElementById("slLoading").addEventListener("click", ()=>{
   document.getElementById("slOOO").classList.remove("active");
   document.getElementById("slLoading").classList.add("active");
 });
-document.getElementById("slOOO").addEventListener("click", ()=>{ location.reload(); });   // 간단 복원
+document.getElementById("slOOO").addEventListener("click", renderOOO);
 
 /* ==================================================================
    완료 조건 → 진동 → 맥북 덮기 → 미니게임
    ================================================================== */
+let ringShakeTimer = null;
 function checkAllVisited(){
   if(visited.msg && visited.lookup){
-    setTimeout(()=>{ document.getElementById("vibeIcon").classList.add("on"); }, 2500);
+    setTimeout(()=>{
+      document.getElementById("vibeIcon").classList.add("on");
+      startRingShake();
+    }, 2500);
   }
 }
+function startRingShake(){
+  if(ringShakeTimer) return;
+  ringShakeTimer = setInterval(()=>{
+    const cw = document.getElementById("chromeWin");
+    // 노스텔지아 비스타 창이 열려있을 때만 흔들림
+    if(cw.classList.contains("on") && document.getElementById("nvSite").classList.contains("on")){
+      cw.classList.remove("ringing"); void cw.offsetWidth; cw.classList.add("ringing");
+    }
+  }, 1800);
+}
+function stopRingShake(){
+  if(ringShakeTimer){ clearInterval(ringShakeTimer); ringShakeTimer=null; }
+  document.getElementById("chromeWin").classList.remove("ringing");
+}
 document.getElementById("vibeAct").addEventListener("click", ()=>{
+  stopRingShake();
   nvlog("desk_done", {});
   save("storylab_progress",{stage:"minigame", t:Date.now()});
   const f=document.getElementById("fade");
@@ -431,7 +455,7 @@ document.getElementById("vibeAct").addEventListener("click", ()=>{
 
 /* ---------- 진입 독백 ---------- */
 say([
-  "…유진님 자리다.",
+  "짐이 남겨져 있다.",
   "책상 위에 핸드폰과 맥북, 그리고 텀블러가 놓여 있다.",
 ]);
 

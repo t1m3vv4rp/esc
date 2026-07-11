@@ -17,6 +17,32 @@ const YUJIN_IMG = "assets/profiles/yujin.png";
 let playerFull = load(NAME_KEY)?.full || null;   // 세 글자 전체
 let playerName = load(NAME_KEY)?.short || null;  // 뒤 2글자
 
+/* ---------- 인트로 독백 (홈 화면 진입 시) ---------- */
+const introMono = document.getElementById("introMono");
+const introMonoTxt = introMono.querySelector(".mtxt");
+let introMonoQueue = [];
+function sayIntro(lines){
+  introMonoQueue = [...lines];
+  nextIntroMono();
+}
+function nextIntroMono(){
+  const t = introMonoQueue.shift();
+  if(t===undefined){ introMono.style.display="none"; return; }
+  introMonoTxt.textContent = t;
+  introMono.style.display = "block";
+}
+introMono.addEventListener("click", nextIntroMono);
+let introStarted = false;
+function introBegin(){
+  if(introStarted) return;
+  introStarted = true;
+  sayIntro([
+    "유진님이 말한 운세 어플이 이거 맞나?",
+    "오늘의 운세.",
+    "눌러보자.",
+  ]);
+}
+
 /* ---------- 게이트 ---------- */
 const ua = navigator.userAgent;
 const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints>1 && innerWidth<900);
@@ -25,10 +51,12 @@ if(isMobile || !isChrome){
   document.getElementById("gateLayer").classList.add("on");
 } else {
   document.getElementById("phoneLayer").classList.add("on");
+  introBegin();
 }
 document.getElementById("forceEnter").addEventListener("click", ()=>{
   document.getElementById("gateLayer").classList.remove("on");
   document.getElementById("phoneLayer").classList.add("on");
+  introBegin();
 });
 
 /* ---------- 실시간 시계 ---------- */
@@ -84,8 +112,8 @@ function renderFortune(){
   box.innerHTML = `
     <div class="fortune-card"><div class="txt" style="font-size:12.5px; color:#8A6B47">${F_INTRO.replace(/\n/g,"<br>")}</div></div>
     <div class="fortune-card">
-      <div class="cap">이름을 입력해주세요</div>
-      <input class="f-input" id="fName" placeholder="예: 김유진" autocomplete="off">
+      <div class="cap">본명을 입력해주세요</div>
+      <input class="f-input" id="fName" placeholder="" autocomplete="off">
       <button class="f-btn" id="fGo">운세 보기</button>
     </div>
     <div id="fResult"></div>`;
@@ -167,7 +195,11 @@ function enterSlack(){
     document.getElementById("phoneLayer").classList.remove("on");
     document.getElementById("slackLayer").classList.add("on");
     requestAnimationFrame(()=> document.getElementById("slackWindow").classList.add("show"));
-    setTimeout(startChatSequence, 700);
+    // 재방문이 아니면, 창이 뜨는 즉시 첫 메시지가 이미 와있는 상태로 표시
+    if(!(chatHistory.length>0 && load(SAVE_KEY)?.stage)){
+      addMsg({who:"yujin", text:`${playerName}님, 저 딴소리 하나 해도 되나요?`});
+    }
+    setTimeout(startChatSequence, 500);
   }, 800);
 }
 
@@ -318,14 +350,15 @@ function checkTriggers(text){
 async function replyTriggers(text){
   const hits = checkTriggers(text);
   for(const h of hits){
-    await yujinSay(h, 900);
+    await yujinSay(h);
     pendingYeoteun = true;
   }
 }
 
-/* 유진 발화 (타이핑 표시 후 출력) */
+/* 유진 발화 (타이핑 표시 후 출력) — 15자 이상 6초, 미만 3초 */
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-async function yujinSay(text, typeMs=1400, opts={}){
+async function yujinSay(text, opts={}){
+  const typeMs = text.length >= 15 ? 6000 : 3000;
   showTyping(true);
   await sleep(typeMs);
   showTyping(false);
@@ -379,29 +412,29 @@ async function startChatSequence(){
     return;
   }
 
-  await sleep(600);
-  await yujinSay(`${playerName}님, 저 딴소리 하나 해도 되나요?`, 1600);
+  // 첫 메시지는 enterSlack()에서 이미 표시됨 (창이 뜨는 즉시 도착해있는 상태)
+  await sleep(400);
 
   // 응답 대기 (25초 자동 진행)
   let r = await waitInput(25000);
   await replyTriggers(r);
 
-  await yujinSay("시공 중에 스토리랩 구경갔던 날 기억하세요?", 1500);
-  await yujinSay("그날 제가 이런 사진을 찍었거든요.", 1200);
+  await yujinSay("시공 중에 스토리랩 구경갔던 날 기억하세요?");
+  await yujinSay("그날 제가 이런 사진을 찍었거든요.");
   showTyping(true); await sleep(900); showTyping(false);
   addMsg({who:"yujin", imgFail:true, text:"(이미지)", noSave:false});
 
   // 답변 대기
   r = await waitInput(20000);
   await replyTriggers(r);
-  await yujinSay("이상하네.", 1100);
+  await yujinSay("안보여요?");
 
-  await yujinSay("지긋지긋해요.", 1300);
+  await yujinSay("이 사진을 찍고 나서 잠을 못 잤어요.");
   r = await waitInput(18000);
   await replyTriggers(r);
-  await yujinSay("이제는 진짜 좀 제대로 자고싶어요. 정신 나갈 것 같아요.", 1700);
-  await yujinSay("꿈 속에서 계속 말을 걸어요. 말이 들린다고 할까", 1600);
-  await yujinSay("그러니까 보통 뭐라 하냐면…", 1400);
+  await yujinSay("이제는 진짜 좀 제대로 자고싶어요. 정신 나갈 것 같아요.");
+  await yujinSay("꿈 속에서 계속 말을 걸어요. 말이 들린다고 할까");
+  await yujinSay("그러니까 보통 뭐라 하냐면…");
 
   // 빈 메시지 7개 (찰나 노이즈)
   for(let i=0;i<7;i++){
@@ -412,32 +445,28 @@ async function startChatSequence(){
 
   // 자유응답 구간 (유진 대사 이어지는 동안 계속 보낼 수 있음)
   openFree();
-  await yujinSay("안되겟슨", 1000);
+  await yujinSay("안되겟슨");
   await sleep(800);
-  await yujinSay("저는 그게 뭐였는지 봐야겠어요", 1400);
+  await yujinSay("저는 그게 뭐였는지 봐야겠어요");
   await sleep(900);
-  await yujinSay("그 곳에 있던 게 대체 뭔지...", 1500);
+  await yujinSay("그 곳에 있던 게 대체 뭔지...");
   await sleep(700);
-  await yujinSay("그날", 800);
+  await yujinSay("그날");
   await sleep(600);
-  await yujinSay("그거 나만 봤던 건지", 1200);
+  await yujinSay("그거 나만 봤던 건지");
   await sleep(800);
-  await yujinSay("알아야겠어요.", 1100);
+  await yujinSay("알아야겠어요.");
   const freeSent = closeFree();
   for(const t of freeSent){ await replyTriggers(t); }
 
-  await yujinSay("같이 가봐요, 그래주실거죠", 1500);
-  await sleep(500);
-  await yujinSay("왜 고민해요?", 1000);
-  await sleep(500);
-  await yujinSay("의심스러워요?", 1000);
+  await yujinSay("같이 가봐요, 그래주실거죠");
 
   // 3회 자유 답변 → 3번째가 강제 변환
   for(let i=0;i<3;i++){
     const ans = await waitInput(30000);
     if(ans===null){
       // 무응답이면 유진이 재촉
-      if(i<2){ await yujinSay("...보고 계시죠?", 1000); continue; }
+      if(i<2){ await yujinSay("...보고 계시죠?"); continue; }
       // 마지막까지 무응답 → 시스템이 대신 전송
       addMsg({who:"player", text:"…"});
     }
