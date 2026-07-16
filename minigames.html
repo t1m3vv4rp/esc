@@ -122,7 +122,7 @@
 
   /* ========== 독백 자막 ========== */
   #monologue{
-    position:absolute; z-index:35; left:50%; bottom:8%;
+    position:absolute; z-index:35; left:50%; bottom:16%;
     transform:translateX(-50%);
     background:rgba(245,243,238,0.96); color:#1a1a1a;
     padding:14px 24px; border-radius:10px;
@@ -164,7 +164,7 @@
 /* 필통 미니게임 v2: 사진+잉크 캔버스 */
 .ink-frame{ position:relative; width:100%; max-width:600px; margin:6px auto 0; border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); }
 .ink-photo{
-  width:100%; aspect-ratio:600/340; background:url(assets/mini/bg_pencilcase.jpg) center/cover; image-rendering:pixelated;
+  width:100%; aspect-ratio:600/340; background:url(assets/mini/bg_pencilcase2.jpg) center/cover; image-rendering:pixelated;
 }
 #inkCanvas{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .pc-icon-cell{
@@ -252,7 +252,7 @@
   <div class="bg" id="bg"></div>
   <div id="camView"></div>
 
-  <div id="progress">STORYLAB · 운영</div>
+
 
   <!-- 알림 -->
   <div id="macNotif"></div>
@@ -268,6 +268,7 @@
   </g></svg></div>
   <div id="shutterInfo" class="hidden"></div>
   <div id="flash"></div>
+  <div id="fade" style="position:fixed; inset:0; background:#000; z-index:80; opacity:0; pointer-events:none; transition:opacity 1s ease;"></div>
 
   <div id="macHotspot" style="display:none;"></div>
 
@@ -319,11 +320,11 @@ const playerName = (JSON.parse(localStorage.getItem("storylab_player")||"null")|
 const WHITELIST = ["임새람","이주은","박가연","김아량","황혜지","박해란","이나연","박다솜","김정민","김유진","김도연","육예은"];
 const F_MAIN  = "오늘은 예기치못한 손님을 맞이하게 됩니다. 공간을 운영하는 사람이라면 운영 준비에 힘 쓰세요.";
 const F_YUJIN = "오늘은 꿈에 그리던 목표를 이루는 날 입니다. 궁금해하던 얼굴을 확인할 수 있습니다. 가급적 많은 동료들과 함께하세요. 이미 경험해본 것을 경험할 수 있습니다.";
+const F_AGAIN = "오늘은 대박이 터질 날입니다. 이왕이면 로또 당첨되는 게 좋겠네요. 좋은 하루 되세요!";
 const F_LATER = [
   "누군가 자신의 운세를 궁금해할 하루입니다. 자신의 이름을 검색해봤는데 신기한 결과가 나올 수도 있습니다.",
   "오늘은 어고집밥에 가서 기깔한 한 끼를 할 운명입니다.",
   "너무 기찮다.;; 운세 쓰는 것도 힘드네요",
-  "오늘은 대박이 터질 날입니다. 이왕이면 로또 당첨되는 게 좋겠네요. 좋은 하루 되세요!",
   "잘 아시겠지만 이 게임은 모두 허구입니다. 처음부터 끝까지 맞는 글자가 단 한 개도 없어요.",
 ];
 function setBg(file, filter){
@@ -386,113 +387,98 @@ function nagNotif(title, msgs, onClick){
 }
 
 /* ================================================================
-   미니게임 1 — 필통 정리 (사진 속에 "없는" 아이템 찾기, 6스테이지)
-   ⚠️ IN_PHOTO 값은 실제 사진 확인 후 조정 필요 — true=사진에 있음, false=없음
+   미니게임 1 — 필통 정리 (실제 사진 속 한 칸을 가리고, 뭐가 있었는지 맞히기)
+   ⚠️ COMPARTMENTS 좌표/정답은 실제 사진 기준 대략값 — 어긋나면 좌표만 조정하면 됨
    ================================================================ */
 const ITEM_ICONS = {
-  유성매직: `<svg viewBox="0 0 40 40"><rect x="17" y="4" width="6" height="22" rx="2" fill="#222"/><path d="M17 26 L23 26 L20 34 Z" fill="#222"/><rect x="16" y="3" width="8" height="5" rx="1" fill="#555"/></svg>`,
-  지우개:   `<svg viewBox="0 0 40 40"><rect x="8" y="14" width="24" height="13" rx="2" fill="#eee" stroke="#999" stroke-width="1"/><rect x="8" y="14" width="24" height="6" fill="#7bb6e0"/></svg>`,
-  수정테이프:`<svg viewBox="0 0 40 40"><rect x="10" y="10" width="14" height="20" rx="3" fill="#f3f3f3" stroke="#999" stroke-width="1"/><rect x="13" y="6" width="8" height="6" rx="1" fill="#ffd23f"/><circle cx="17" cy="20" r="3.5" fill="#ccc"/></svg>`,
   가위:     `<svg viewBox="0 0 40 40"><circle cx="12" cy="12" r="5" fill="none" stroke="#333" stroke-width="2.5"/><circle cx="12" cy="28" r="5" fill="none" stroke="#333" stroke-width="2.5"/><path d="M16 14 L34 34 M16 26 L34 6" stroke="#333" stroke-width="2.5" stroke-linecap="round"/></svg>`,
-  딱풀:     `<svg viewBox="0 0 40 40"><rect x="12" y="10" width="16" height="22" rx="2" fill="#ffd93d" stroke="#c9a400" stroke-width="1"/><rect x="15" y="4" width="10" height="7" rx="1" fill="#3d7dca"/></svg>`,
+  커터칼:   `<svg viewBox="0 0 40 40"><rect x="6" y="16" width="16" height="8" rx="1" fill="#e2453c"/><path d="M22 18 L36 14 L36 22 L22 22 Z" fill="#ddd" stroke="#999" stroke-width="1"/></svg>`,
   볼펜:     `<svg viewBox="0 0 40 40"><rect x="18" y="4" width="4" height="24" fill="#2255aa"/><path d="M18 28 L22 28 L20 36 Z" fill="#333"/><rect x="17" y="3" width="6" height="4" fill="#111"/></svg>`,
-  자:       `<svg viewBox="0 0 40 40"><rect x="4" y="16" width="32" height="8" fill="#ffe9a8" stroke="#c9a400" stroke-width="1"/><path d="M8 16 v3 M13 16 v5 M18 16 v3 M23 16 v5 M28 16 v3 M33 16 v5" stroke="#c9a400" stroke-width="1"/></svg>`,
+  연필:     `<svg viewBox="0 0 40 40"><rect x="17" y="4" width="6" height="22" fill="#e8a33d"/><path d="M17 26 L23 26 L20 36 Z" fill="#c9975a"/><rect x="17" y="2" width="6" height="4" fill="#e06a5a"/></svg>`,
+  화이트펜: `<svg viewBox="0 0 40 40"><rect x="17" y="4" width="6" height="24" rx="2" fill="#f5f5f0" stroke="#ccc" stroke-width="1"/><rect x="16" y="2" width="8" height="4" rx="1" fill="#333"/></svg>`,
 };
-// 실제 사진 확인 후 true/false 조정하세요
-const IN_PHOTO = {
-  유성매직: false,
-  지우개:   true,
-  수정테이프: false,
-  가위:     true,
-  딱풀:     true,
-  볼펜:     true,
-  자:       false,
-};
-const ALL_ITEMS = Object.keys(ITEM_ICONS);
-const MISSING_ITEMS  = ALL_ITEMS.filter(k=>!IN_PHOTO[k]);
-const PRESENT_ITEMS  = ALL_ITEMS.filter(k=> IN_PHOTO[k]);
+// 실제 사진 기준 칸 위치(% 좌표)와 정답 — 어긋나면 좌표만 조정
+const COMPARTMENTS = [
+  { key:"가위",     x1:6,  y1:6,  x2:42, y2:62 },
+  { key:"볼펜",     x1:40, y1:8,  x2:65, y2:46 },
+  { key:"커터칼",   x1:60, y1:30, x2:80, y2:62 },
+  { key:"화이트펜", x1:70, y1:40, x2:90, y2:68 },
+  { key:"연필",     x1:52, y1:66, x2:94, y2:98 },
+];
 const TOTAL_STAGES = 6;
 
 function startPencil(){
-  setBg("bg_pencilcase.jpg");
+  setBg("bg_pencilcase2.jpg");
   let stageNum = 0, wrongTotal = 0;
+  const order = COMPARTMENTS.map((_,i)=>i);
+  for(let i=order.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [order[i],order[j]]=[order[j],order[i]]; }
+  order.push(order[0]); // 6스테이지 채우기(5칸 + 1 반복)
 
   const panel = document.createElement("div");
   panel.className = "panel";
   panel.innerHTML = `
     <h2>필통 정리 <span id="pcStageLabel" style="font-size:11px; opacity:0.6"></span></h2>
-    <div class="sub">사진 속 필통에 <b>없는</b> 물건을 찾아 클릭하세요.</div>
+    <div class="sub">가려진 칸에 무엇이 있었는지 클릭하세요.</div>
     <div class="ink-frame">
       <div class="ink-photo" id="inkPhoto"></div>
       <canvas id="inkCanvas" width="600" height="340"></canvas>
     </div>
-    <div class="pc-grid" id="pcIcons" style="grid-template-columns:repeat(4,1fr); margin-top:14px;"></div>
+    <div class="pc-grid" id="pcIcons" style="grid-template-columns:repeat(5,1fr); margin-top:14px;"></div>
     <div class="row"><span class="feedback" id="pcFb"></span></div>`;
   stage.appendChild(panel);
 
   const canvas = panel.querySelector("#inkCanvas");
   const ctx = canvas.getContext("2d");
-  function drawBlot(cx, cy, r){
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.fillStyle = "rgba(8,8,10,0.94)";
+
+  // 사진 속 칸 하나를 찢어진 듯한 검은 마스크로 가림
+  function drawMask(comp){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const x1 = comp.x1/100*canvas.width,  y1 = comp.y1/100*canvas.height;
+    const x2 = comp.x2/100*canvas.width,  y2 = comp.y2/100*canvas.height;
+    ctx.fillStyle = "rgba(5,5,6,0.97)";
     ctx.beginPath();
-    const spikes = 10;
-    for(let i=0;i<spikes;i++){
-      const ang = (i/spikes)*Math.PI*2;
-      const rad = r * (0.7 + Math.random()*0.5);
-      const px = Math.cos(ang)*rad, py = Math.sin(ang)*rad;
-      i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+    const jag = 7; // 가장자리 삐뚤빼뚤하게
+    const pts = [];
+    const perim = [[x1,y1],[x2,y1],[x2,y2],[x1,y2]];
+    for(let side=0; side<4; side++){
+      const [ax,ay] = perim[side];
+      const [bx,by] = perim[(side+1)%4];
+      for(let i=0;i<jag;i++){
+        const t = i/jag;
+        const px = ax+(bx-ax)*t + (Math.random()-0.5)*10;
+        const py = ay+(by-ay)*t + (Math.random()-0.5)*10;
+        pts.push([px,py]);
+      }
     }
+    pts.forEach(([px,py],i)=> i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py));
     ctx.closePath(); ctx.fill();
-    // 튀는 작은 점들
-    for(let i=0;i<6;i++){
-      const ang = Math.random()*Math.PI*2, dist = r*(1+Math.random()*0.6);
-      ctx.beginPath();
-      ctx.arc(Math.cos(ang)*dist, Math.sin(ang)*dist, 3+Math.random()*5, 0, Math.PI*2);
-      ctx.fill();
-    }
-    ctx.restore();
   }
-  function splatForStage(n){
-    // 코너 중 하나에서 점점 안쪽으로 번짐
-    const corners = [[40,40],[560,40],[40,300],[560,300],[300,40],[300,300]];
-    const [cx,cy] = corners[n % corners.length];
-    const baseR = 55 + n*26;
-    for(let i=0;i<3;i++){
-      drawBlot(cx + (Math.random()-0.5)*60, cy + (Math.random()-0.5)*60, baseR*(0.55+Math.random()*0.5));
-    }
+  function shakePanel(){
+    stage.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:220});
   }
-  function splatAt(px, py){ drawBlot(px, py, 34); }
 
   function renderStage(){
+    const comp = COMPARTMENTS[order[stageNum]];
     stageNum++;
     panel.querySelector("#pcStageLabel").textContent = `${stageNum} / ${TOTAL_STAGES}`;
-    const missing = MISSING_ITEMS[(stageNum-1) % MISSING_ITEMS.length];
-    const decoyPool = PRESENT_ITEMS.slice();
-    // 셔플 후 3개 선택
-    for(let i=decoyPool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [decoyPool[i],decoyPool[j]]=[decoyPool[j],decoyPool[i]]; }
-    const choices = [missing, ...decoyPool.slice(0,3)];
-    for(let i=choices.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [choices[i],choices[j]]=[choices[j],choices[i]]; }
+    drawMask(comp);
 
     const grid = panel.querySelector("#pcIcons");
     grid.innerHTML = "";
-    choices.forEach(key=>{
+    Object.keys(ITEM_ICONS).forEach(key=>{
       const cell = document.createElement("div");
       cell.className = "pc-icon-cell";
       cell.dataset.key = key;
       cell.innerHTML = `<div class="pc-icon">${ITEM_ICONS[key]}</div><div class="pc-icon-nm">${key}</div>`;
-      cell.addEventListener("click", (e)=>{
-        if(key===missing){
+      cell.addEventListener("click", ()=>{
+        if(key===comp.key){
           panel.querySelector("#pcFb").textContent = "";
           if(stageNum>=TOTAL_STAGES){ panel.remove(); onPencilDone(); }
-          else { splatForStage(stageNum-1); renderStage(); }
+          else { renderStage(); }
         } else {
           wrongTotal++;
-          const rect = canvas.getBoundingClientRect();
-          const scaleX = canvas.width/rect.width, scaleY = canvas.height/rect.height;
-          splatAt((e.clientX-rect.left)*scaleX, (e.clientY-rect.top)*scaleY);
-          panel.querySelector("#pcFb").textContent = "그건 있는데...";
+          panel.querySelector("#pcFb").textContent = "아닌 것 같은데...";
+          shakePanel();
           cell.animate([{transform:"scale(1)"},{transform:"scale(0.9)"},{transform:"scale(1)"}],{duration:180});
           if(wrongTotal===3){
             panel.querySelector("#pcFb").textContent = "";
@@ -561,7 +547,14 @@ function startFigure(){
       if(notifTimer){ clearInterval(notifTimer); notifTimer=null; }
       notifWrap.innerHTML="";
       nvlog("figure_done", {fails});
-      say("이 순서였네. 정산 완료.", ()=>{ saveGame("photo"); setTimeout(startPhotoIntro, 900); });
+      say("이 순서였네. 정산 완료.", ()=>{
+        localStorage.setItem("storylab_mac_visit", "2");
+        saveGame("desk2");
+        nvlog("mac_visit2_start", {});
+        const f=document.getElementById("fade");
+        f.style.opacity=1;
+        setTimeout(()=>{ location.href="desk.html"; }, 1100);
+      });
     } else {
       fails++;
       stage.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:220});
@@ -717,7 +710,7 @@ document.querySelectorAll("#macOverlay [data-mac]").forEach(d=>{
       document.getElementById("macOverlay").classList.remove("on");
       const f=document.getElementById("fade");
       f.style.opacity = 1;
-      setTimeout(()=>{ location.href = "twist.html"; }, 900);
+      setTimeout(()=>{ location.href = "twist.html"; }, 1050);
     }
   });
 });
@@ -740,8 +733,8 @@ function renderFortune2(){
     const name = document.getElementById("fName2").value.replace(/\s+/g,"");
     if(!name) return;
     let txt;
-    if(name==="김유진"){ txt = F_YUJIN; }
-    else if(name===playerFull){ txt = F_MAIN; }
+    if(name===playerFull){ txt = F_AGAIN; }
+    else if(name==="김유진"){ txt = F_YUJIN; }
     else { txt = F_LATER[Math.floor(Math.random()*F_LATER.length)]; }
     document.getElementById("fResult2").innerHTML = `<div class="fcard"><div class="fcap">${name.slice(-2)}님의 오늘</div><div class="ftxt">${txt}</div></div>`;
   });
@@ -792,7 +785,10 @@ function startFromBeginning(){
    시작: 저장이 있으면 이어하기 제안
    ================================================================ */
 const save = loadGame();
-if(save && save.stage && save.stage !== "pencil" && STAGE_START[save.stage]){
+if(localStorage.getItem("storylab_direct_photo")==="1"){
+  localStorage.removeItem("storylab_direct_photo");
+  STAGE_START["photo"]();
+} else if(save && save.stage && save.stage !== "pencil" && STAGE_START[save.stage]){
   setBg("bg_frontview.jpg", "brightness(0.55)");
   const p=document.createElement("div"); p.className="panel"; p.style.textAlign="center";
   const label={figure:"피규어 순서", photo:"세팅사진 촬영", done:"완료"}[save.stage]||save.stage;

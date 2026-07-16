@@ -47,7 +47,7 @@
 
   /* ============ 독백 ============ */
   #mono{
-    position:fixed; z-index:350; left:50%; bottom:8vh; transform:translateX(-50%);
+    position:fixed; z-index:350; left:50%; bottom:16vh; transform:translateX(-50%);
     background:rgba(245,243,238,0.97); color:#161616;
     padding:15px 26px; border-radius:10px; font-size:15px; max-width:78%;
     box-shadow:0 4px 0 rgba(0,0,0,0.55); display:none; text-align:center; cursor:pointer;
@@ -56,7 +56,7 @@
 
   /* ============ 버튼(충전 폴백 등) ============ */
   .float-btn{
-    position:fixed; z-index:355; left:50%; bottom:8vh; transform:translateX(-50%);
+    position:fixed; z-index:355; left:50%; bottom:16vh; transform:translateX(-50%);
     background:#E8A33D; color:#1a1200; border:none; border-radius:22px;
     padding:12px 24px; font-size:13.5px; font-weight:600; cursor:pointer; display:none;
   }
@@ -69,9 +69,10 @@
   /* 잠금화면 */
   #lockScreen{
     flex:1; background:radial-gradient(120% 100% at 50% 0%, #2a2f45, #101018 70%);
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:16px;
     color:#e8e8ec;
   }
+  #lockScreen.on{ display:flex; }
   #lockScreen .avatar{
     width:72px; height:72px; border-radius:50%;
     background:url(assets/profiles/yujin.png) center/cover; border:2px solid rgba(255,255,255,0.3);
@@ -88,6 +89,19 @@
   #lockScreen .pwhint{ font-size:11.5px; color:#8a8a94; margin-top:4px; }
   .shake{ animation:shakeX 0.4s; }
   @keyframes shakeX{ 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);} 60%{transform:translateX(-5px);} 80%{transform:translateX(5px);} }
+
+  /* 배터리 부족 화면 */
+  #macDead{
+    flex:1; background:#000; display:none;
+    align-items:center; justify-content:center; flex-direction:column; gap:14px;
+  }
+  #macDead.on{ display:flex; }
+  #macDead .batt{ width:130px; }
+  #macDead .spark{
+    width:14px; height:14px; opacity:0.9;
+    animation:sparkPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes sparkPulse{ 0%,100%{opacity:0.35;} 50%{opacity:1;} }
 
   /* 데스크탑 */
   #macDesktop{ flex:1; display:none; flex-direction:column;
@@ -132,6 +146,17 @@
   .mwin .dot{ width:11px; height:11px; border-radius:50%; }
   .dot.r{ background:#ff5f57; cursor:pointer; } .dot.y{ background:#febc2e; } .dot.g{ background:#28c840; }
   .mwin .mtitle .tname{ flex:1; text-align:center; margin-right:40px; }
+  /* 오늘의 운세 (맥 창 버전) */
+  #fortuneWin{ width:400px; height:420px; left:50%; top:50%; transform:translate(-50%,-50%); }
+  .fortune-body{ flex:1; overflow-y:auto; padding:22px 24px; background:linear-gradient(180deg,#FFF6E9,#FFEFD6); }
+  .fortune-body .cap{ font-size:11px; color:#B98A4E; letter-spacing:2px; text-align:center; }
+  .fortune-body .kor{ font-size:16px; font-weight:600; color:#6B4423; text-align:center; margin:4px 0 18px; }
+  .fortune-body .fcard{ background:#fff; border-radius:14px; padding:16px 18px; margin-bottom:14px; box-shadow:0 2px 8px rgba(107,68,35,0.08); }
+  .fortune-body .fcard .fcap{ font-size:11px; color:#B98A4E; margin-bottom:6px; }
+  .fortune-body .fcard .ftxt{ font-size:13.5px; color:#5C4530; line-height:1.85; }
+  .fortune-body .fsearch{ display:flex; gap:8px; margin-top:8px; }
+  .fortune-body input{ flex:1; border:1.5px solid #E8CBA0; border-radius:18px; padding:9px 14px; font-size:13px; outline:none; }
+  .fortune-body button{ background:#E8A33D; color:#fff; border:none; border-radius:18px; padding:9px 16px; font-size:12.5px; cursor:pointer; }
 
   /* ---- 메시지 앱 ---- */
   #msgWin{ inset:6% 8%; }
@@ -166,11 +191,26 @@
   }
   .chrome-url{
     background:#fff; padding:7px 12px; display:flex; align-items:center; gap:10px; flex-shrink:0;
-    border-bottom:1px solid #e2e2e4;
+    border-bottom:1px solid #e2e2e4; position:relative;
   }
   .chrome-url .urlbox{
-    flex:1; background:#f1f3f4; border-radius:14px; padding:6px 14px; font-size:12px; color:#444;
+    flex:1; background:#f1f3f4; border-radius:14px; padding:6px 14px; font-size:12px; color:#444; cursor:pointer;
   }
+  /* 방문 기록 드롭다운 */
+  .hist-drop{
+    position:absolute; top:38px; left:12px; right:12px; z-index:20;
+    background:#fff; border:1px solid #dadce0; border-radius:8px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.16); display:none; overflow:hidden;
+  }
+  .hist-drop.on{ display:block; }
+  .hist-item{
+    padding:9px 14px; font-size:12.5px; color:#333; cursor:pointer;
+    border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px;
+  }
+  .hist-item::before{ content:"🕐"; font-size:11px; opacity:0.6; }
+  .hist-item:last-child{ border-bottom:none; }
+  .hist-item:hover{ background:#f5f5f5; }
+
   .chrome-view{ flex:1; overflow-y:auto; position:relative; background:#fff; }
   .restore-bar{
     position:absolute; top:10px; right:12px; z-index:5;
@@ -182,6 +222,77 @@
     background:#1a73e8; color:#fff; border:none; border-radius:6px;
     padding:6px 12px; font-size:12px; cursor:pointer;
   }
+
+  /* 네이버 검색결과 (가짜) */
+  .nv-search{ display:none; padding:18px 26px; font-family:-apple-system,sans-serif; }
+  .nv-search.on{ display:block; }
+  .nvs-top{ display:flex; align-items:center; gap:14px; border-bottom:2px solid #03c75a; padding-bottom:12px; margin-bottom:18px; }
+  .nvs-logo{ font-weight:800; color:#03c75a; font-size:17px; letter-spacing:-0.5px; }
+  .nvs-box{ flex:1; background:#f4f4f4; border-radius:20px; padding:8px 16px; font-size:13px; color:#222; }
+  .nvs-results{ display:flex; flex-direction:column; gap:18px; }
+  .nvs-card{ }
+  .nvs-card .src{ font-size:11px; color:#03c75a; margin-bottom:3px; }
+  .nvs-card .ttl{ font-size:14.5px; color:#1a0dab; margin-bottom:4px; cursor:pointer; }
+  .nvs-card .ttl:hover{ text-decoration:underline; }
+  .nvs-card .snip{ font-size:12.5px; color:#555; line-height:1.6; }
+
+  /* 네이버 블로그 (비공개 글) */
+  .nv-blog{ display:none; font-family:"Malgun Gothic",-apple-system,sans-serif; background:#fff; color:#222; }
+  .nv-blog.on{ display:block; }
+  .nvb-topbar{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 26px; font-size:11.5px; color:#666; border-bottom:1px solid #eee;
+  }
+  .nvb-topbar b{ color:#222; }
+  .nvb-banner{
+    text-align:center; padding:60px 0 40px; font-family:Georgia,serif;
+    font-size:34px; font-weight:700; color:#7a1017;
+  }
+  .nvb-layout{ display:flex; gap:0; padding:0 26px 50px; align-items:flex-start; }
+  .nvb-side{ width:150px; flex-shrink:0; padding-top:6px; }
+  .nvb-avatar{
+    width:100px; height:100px; border-radius:4px; margin-bottom:10px;
+    background:linear-gradient(135deg,#d9a6a0,#8a6a78); background-size:cover; background-position:center;
+  }
+  .nvb-name{ font-size:14px; font-weight:700; color:#222; }
+  .nvb-id{ font-size:11px; color:#888; margin:2px 0 6px; }
+  .nvb-buddy{ font-size:10.5px; color:#999; margin-bottom:10px; }
+  .nvb-links{ font-size:10.5px; color:#666; margin-bottom:18px; line-height:1.8; }
+  .nvb-cat-title{ font-size:11.5px; color:#999; margin-bottom:6px; }
+  .nvb-cat{ font-size:12px; color:#333; padding:3px 0; cursor:default; }
+  .nvb-cat span{ color:#999; }
+  .nvb-cat.sub{ padding-left:2px; }
+  .nvb-cat.sub2{ padding-left:10px; color:#999; font-size:11px; cursor:pointer; font-family:"Courier New",monospace; letter-spacing:0.5px; }
+  .nvb-cat.sub2:hover{ color:#333; text-decoration:underline; }
+  .nvb-rss{ font-size:10px; color:#bbb; margin:14px 0 18px; }
+  .nvb-shelf-title{ font-size:11px; color:#888; margin-bottom:8px; }
+  .nvb-shelf-title b{ color:#333; }
+  .nvb-shelf{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+  .nvb-book{ width:100%; aspect-ratio:3/4; border-radius:2px; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08); }
+
+  /* 비밀 카테고리(괴담 소설 모음) 목록 */
+  .secret-post{ margin-bottom:34px; padding-bottom:28px; border-bottom:1px solid #f0f0f0; }
+  .secret-post:last-child{ border-bottom:none; }
+  .secret-post .sp-meta{ font-size:11px; color:#999; margin-bottom:8px; }
+  .secret-post .sp-meta .priv{ color:#b23b3b; margin-left:6px; }
+  .secret-post .sp-body{ font-size:14px; color:#333; line-height:2.0; }
+  .nvb-main{ flex:1; min-width:0; border-left:1px solid #f0f0f0; padding-left:30px; }
+  .nvb-listhead{ font-size:13px; color:#333; margin-bottom:20px; display:flex; justify-content:space-between; }
+  .nvb-listhead b{ font-weight:700; }
+  .nvb-listopen{ font-size:11.5px; color:#999; }
+  .nvb-tag{ font-size:11.5px; color:#03c75a; margin-bottom:6px; }
+  .nvb-title{ font-size:22px; font-weight:700; color:#222; margin-bottom:14px; line-height:1.4; }
+  .nvb-meta{
+    display:flex; align-items:center; gap:6px; font-size:11.5px; color:#888;
+    padding-bottom:16px; border-bottom:1px solid #f0f0f0; margin-bottom:20px;
+  }
+  .nvb-mini-avatar{ width:18px; height:18px; border-radius:50%; background:#d9a6a0; display:inline-block; }
+  .nvb-actions{ margin-left:auto; display:flex; gap:10px; font-size:11px; color:#999; }
+  .nvb-content{ font-size:14.5px; color:#333; line-height:2.05; }
+  .nvb-content p{ margin-bottom:22px; }
+  .nvb-content .stanza{ margin-bottom:22px; }
+  .nvb-content .stanza div{ margin-bottom:2px; }
+  .nvb-content .head{ font-size:16px; font-weight:700; margin:30px 0 18px; color:#222; }
 
   /* ---- 노스텔지아 비스타 사이트 (레트로 기업 사이트 톤) ---- */
   .nv-site{ min-height:100%; background:#C2CFD2; color:#111; display:none;
@@ -329,6 +440,39 @@
   /* 텍스트 파일(이스터에그) */
   #txtWin{ width:380px; height:220px; left:50%; top:50%; transform:translate(-50%,-50%); }
   #txtWin .txt-body{ flex:1; padding:18px; font-size:14px; color:#222; font-family:"Courier New",monospace; }
+  .txt-lock-msg{ font-size:13px; color:#555; margin-bottom:14px; }
+  .txt-pw-row{ display:flex; gap:8px; }
+  .txt-pw-row input{
+    flex:1; border:1px solid #ccc; border-radius:6px; padding:8px 10px; font-size:13px;
+    font-family:"Courier New",monospace; outline:none;
+  }
+  .txt-pw-row input:focus{ border-color:#888; }
+  .txt-pw-row button{
+    background:#333; color:#fff; border:none; border-radius:6px; padding:8px 16px; font-size:12.5px; cursor:pointer;
+  }
+  .txt-pw-fb{ font-size:11.5px; color:#c1121f; margin-top:8px; min-height:16px; }
+
+  /* 포스트잇 */
+  .postit{
+    position:absolute; z-index:24; width:64px; height:64px; margin:-32px 0 0 -32px;
+    background:#fff59a; box-shadow:1px 2px 6px rgba(0,0,0,0.35);
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:9.5px; color:#5a5324; padding:6px; cursor:pointer; transform:rotate(-4deg);
+    line-height:1.3; font-family:"Comic Sans MS", cursive, sans-serif;
+  }
+  .postit:hover{ transform:rotate(-4deg) scale(1.06); }
+  .postit-note{
+    position:fixed; z-index:90; left:50%; top:50%; transform:translate(-50%,-50%) scale(0.3); opacity:0;
+    width:340px; background:#fffceb; border-radius:3px;
+    box-shadow:0 18px 50px rgba(0,0,0,0.5); padding:26px 26px 20px;
+    transition:transform 0.32s cubic-bezier(0.2,0.9,0.3,1.3), opacity 0.25s;
+    pointer-events:none; font-family:"Comic Sans MS", cursive, sans-serif;
+  }
+  .postit-note.on{ transform:translate(-50%,-50%) scale(1); opacity:1; pointer-events:auto; }
+  .pn-close{ position:absolute; top:8px; right:12px; cursor:pointer; color:#999; font-size:13px; }
+  .pn-text{ font-size:16px; color:#333; line-height:1.9; transform:rotate(-1.5deg); }
+  .pn-doodle{ width:120px; margin:14px auto 0; display:block; opacity:0.85; }
+
 </style>
 </head>
 <body>
@@ -339,12 +483,39 @@
     <div class="hotspot" id="hsPhone"  style="left:28%; top:75%;"></div>
     <div class="hotspot" id="hsTumbler" style="left:18%; top:52%;"></div>
     <div class="hotspot" id="hsMac"    style="left:46%; top:55%;"></div>
+    <div class="postit" id="hsPostit" style="left:62%; top:30%;">📌 암호?</div>
   </div>
+</div>
+
+<!-- 포스트잇 펼쳐진 노트 -->
+<div class="postit-note" id="postitNote">
+  <div class="pn-close" id="postitClose">✕</div>
+  <div class="pn-text">
+    [ 텍스트 파일 암호.<br>
+    높은 마음,<br>
+    검은 우주,<br>
+    The Great Escape,<br>
+    나의 여름. ]
+  </div>
+  <svg class="pn-doodle" viewBox="0 0 200 140">
+    <circle cx="150" cy="35" r="22" fill="none" stroke="#2255aa" stroke-width="2"/>
+    <circle cx="150" cy="35" r="5" fill="none" stroke="#2255aa" stroke-width="1.5"/>
+    <path d="M20 100 q6 -14 14 -2 q6 10 14 -4 q6 -12 14 2" fill="none" stroke="#2255aa" stroke-width="2" stroke-linecap="round"/>
+    <path d="M60 60 v34 a6 5 0 1 1 -4 -4.8 V64 l14 -4 v30 a6 5 0 1 1 -4 -4.8" fill="none" stroke="#2255aa" stroke-width="2" stroke-linecap="round"/>
+  </svg>
 </div>
 
 <!-- 맥북 -->
 <div class="layer" id="macLayer">
   <div class="mac-screen">
+    <div id="macDead">
+      <svg class="batt" viewBox="0 0 100 44" fill="none">
+        <rect x="2" y="2" width="84" height="40" rx="8" stroke="#fff" stroke-width="4"/>
+        <rect x="90" y="15" width="7" height="14" rx="2" fill="#fff"/>
+        <rect x="6" y="6" width="10" height="32" rx="3" fill="#e8452c"/>
+      </svg>
+      <svg class="spark" viewBox="0 0 24 24" fill="#fff"><path d="M13 2 L5 14 h5 l-2 8 l9 -13 h-5 z"/></svg>
+    </div>
     <div id="lockScreen">
       <div class="avatar"></div>
       <div class="uname">김유진</div>
@@ -367,14 +538,16 @@
         <div class="dapp" style="background:#fff" data-open="chrome">
           <svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fff"/><circle cx="12" cy="12" r="9.5" fill="none" stroke="#dadce0"/><path d="M12 2.5a9.5 9.5 0 0 1 8.2 4.75H12a4.75 4.75 0 0 0-4.5 3.2z" fill="#EA4335"/><path d="M3.8 7.25a9.5 9.5 0 0 0 4.1 13.1l4.1-7.1a4.75 4.75 0 0 1-3.9-2.8z" fill="#34A853"/><path d="M20.2 7.25A9.5 9.5 0 0 1 12 21.5c-1.4 0-2.8-.3-4.1-.9l4.1-7.1a4.75 4.75 0 0 0 4.3-6.25z" fill="#FBBC05"/><circle cx="12" cy="12" r="4" fill="#4285F4" stroke="#fff" stroke-width="0.8"/></svg>
         </div>
-        <div class="dapp" style="background:#fff" data-open="slack">
+        <div class="dapp" style="background:#fff; position:relative;" data-open="slack">
           <svg width="24" height="24" viewBox="0 0 24 24"><g>
             <rect x="9" y="2.5" width="3" height="8" rx="1.5" fill="#36C5F0"/>
             <rect x="12.5" y="9" width="8" height="3" rx="1.5" fill="#2EB67D"/>
             <rect x="12" y="13.5" width="3" height="8" rx="1.5" fill="#ECB22E"/>
             <rect x="3.5" y="12" width="8" height="3" rx="1.5" fill="#E01E5A"/>
           </g></svg>
+          <div id="slackBadge" style="display:none; position:absolute; top:-4px; right:-4px; width:16px; height:16px; background:#e01e5a; border-radius:50%; color:#fff; font-size:10px; align-items:center; justify-content:center; font-weight:700;">1</div>
         </div>
+        <div class="dapp" style="background:linear-gradient(160deg,#FFE3B0,#E8A33D)" data-open="fortune">☀️</div>
       </div>
 
       <!-- 메시지 -->
@@ -398,12 +571,79 @@
       <div class="mwin" id="chromeWin">
         <div class="mtitle"><span class="dot r" data-close="chromeWin"></span><span class="dot y"></span><span class="dot g"></span><span class="tname">Chrome</span></div>
         <div class="chrome-bar"><div class="chrome-tab" id="chromeTabName">새 탭</div></div>
-        <div class="chrome-url"><div class="urlbox" id="chromeUrl">chrome://newtab</div></div>
+        <div class="chrome-url">
+          <div class="urlbox" id="chromeUrl">chrome://newtab</div>
+          <div class="hist-drop" id="histDrop">
+            <div class="hist-item" data-q="q1">같은 꿈을 반복해서 꾸는 꿈해몽</div>
+            <div class="hist-item" data-q="q2">누가 부를 때 따라가면</div>
+            <div class="hist-item" data-q="q3">꿈 괴담</div>
+            <div class="hist-item" data-q="q4">키이스케이프 스테이션</div>
+            <div class="hist-item" data-q="q5">예약 팁</div>
+          </div>
+        </div>
         <div class="chrome-view" id="chromeView">
           <div class="restore-bar" id="restoreBar">
             <span>이전 페이지를 복구하시겠습니까?</span>
             <button id="restoreBtn">복구</button>
           </div>
+
+          <!-- 네이버 검색결과 (가짜) -->
+          <div class="nv-search" id="nvSearch">
+            <div class="nvs-top"><span class="nvs-logo">NAVER</span><div class="nvs-box" id="nvsQueryBox"></div></div>
+            <div class="nvs-results" id="nvsResults"></div>
+          </div>
+
+          <!-- 네이버 블로그 -->
+          <div class="nv-blog" id="nvBlog">
+            <div class="nvb-topbar">
+              <span>블로그</span>
+              <span>이웃블로그 | 블로그 홈 | 내 메뉴 | <b>SP</b> ▾</span>
+            </div>
+            <div class="nvb-banner">Ending</div>
+            <div class="nvb-layout">
+              <div class="nvb-side">
+                <div class="nvb-avatar"></div>
+                <div class="nvb-name">SP</div>
+                <div class="nvb-id">yjin1025 ✎</div>
+                <div class="nvb-buddy">100 미만 이웃 ⓘ</div>
+                <div class="nvb-links">✎ 글쓰기 &nbsp; ⚙ 관리·통계</div>
+                <div class="nvb-cat-title">카테고리 ▲</div>
+                <div class="nvb-cat" data-cat="main">전체보기 <span>(36)</span></div>
+                <div class="nvb-cat sub" data-cat="main">MAIN</div>
+                <div class="nvb-cat sub" data-cat="main">[일기]</div>
+                <div class="nvb-cat sub">[기록] ▲</div>
+                <div class="nvb-cat sub2" id="secretCat" data-cat="secret">ㄴ .-.. .- ..-</div>
+                <div class="nvb-cat sub" data-cat="main">[잡지]</div>
+                <div class="nvb-rss">RSS 2.0 | RSS 1.0 | ATOM 0.3</div>
+                <div class="nvb-shelf-title">서재안에 글 <b>27</b></div>
+                <div class="nvb-shelf">
+                  <div class="nvb-book" style="background:linear-gradient(160deg,#e0574f,#c23b34)"></div>
+                  <div class="nvb-book" style="background:linear-gradient(160deg,#e8c96a,#c9a43d)"></div>
+                  <div class="nvb-book" style="background:linear-gradient(160deg,#8a95a5,#5c6675)"></div>
+                  <div class="nvb-book" style="background:linear-gradient(160deg,#c9b896,#a4906a)"></div>
+                  <div class="nvb-book" style="background:linear-gradient(160deg,#3a5a4a,#233c30)"></div>
+                  <div class="nvb-book" style="background:linear-gradient(160deg,#7a8a9a,#4a5866)"></div>
+                </div>
+              </div>
+              <div class="nvb-main">
+                <div class="nvb-postview" id="nvbPostView">
+                  <div class="nvb-listhead"><span>전체보기 <b>36개의 글</b></span><span class="nvb-listopen">목록열기</span></div>
+                  <div class="nvb-tag">[일기]</div>
+                  <div class="nvb-title">2/5 몸부림을 쳐봐도 이게 다일지도 몰라</div>
+                  <div class="nvb-meta">
+                    <span class="nvb-mini-avatar"></span> SP &nbsp; 2026. 2. 10. 22:13 · 이웃공개
+                    <span class="nvb-actions"><span>URL 복사</span><span>📊 통계</span></span>
+                  </div>
+                  <div class="nvb-content" id="nvBlogBody"></div>
+                </div>
+                <div class="nvb-postview" id="nvbSecretView" style="display:none;">
+                  <div class="nvb-listhead"><span>.-.. .- ..- <b>7개의 글</b></span></div>
+                  <div id="secretPosts"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="nv-site" id="nvSite">
             <div class="nv-top">
               <img src="assets/nv_logo.png" alt="Nostalgia Vista">
@@ -540,10 +780,30 @@
         </div>
       </div>
 
+            <!-- 오늘의 운세 -->
+      <div class="mwin" id="fortuneWin">
+        <div class="mtitle"><span class="dot r" data-close="fortuneWin"></span><span class="dot y"></span><span class="dot g"></span><span class="tname">오늘의 운세</span></div>
+        <div class="fortune-body">
+          <div class="cap">TODAY'S FORTUNE</div>
+          <div class="kor">오늘의 운세</div>
+          <div id="fortuneBody3"></div>
+        </div>
+      </div>
+
       <!-- 이스터에그 메모 -->
       <div class="mwin" id="txtWin">
-        <div class="mtitle"><span class="dot r" data-close="txtWin"></span><span class="dot y"></span><span class="dot g"></span><span class="tname">메모.txt</span></div>
-        <div class="txt-body">여기서도 업무를 하고 싶으신가요?</div>
+        <div class="mtitle"><span class="dot r" data-close="txtWin"></span><span class="dot y"></span><span class="dot g"></span><span class="tname">메모.txt — 잠김</span></div>
+        <div class="txt-body" id="txtBody">
+          <div id="txtLockView">
+            <div class="txt-lock-msg">이 파일은 암호로 보호되어 있습니다.</div>
+            <div class="txt-pw-row">
+              <input id="txtPwInput" type="text" maxlength="6" placeholder="암호 입력">
+              <button id="txtPwBtn">확인</button>
+            </div>
+            <div class="txt-pw-fb" id="txtPwFb"></div>
+          </div>
+          <div id="txtUnlockedView" style="display:none;">여기서도 업무를 하고 싶으신가요?</div>
+        </div>
       </div>
 
       <div id="vibeIcon"><span class="ph">📳</span><span>핸드폰이 울리고 있다 — <b id="vibeAct" style="cursor:pointer; text-decoration:underline">맥북 덮기</b></span></div>

@@ -85,8 +85,7 @@
 
 <div id="ending">
   <div id="endText"></div>
-  <div id="endTitle">NOSTALGIA VISTA</div>
-  <div id="endSub">STORYLAB · 2026</div>
+
 </div>
 <div id="crt"></div>
 
@@ -157,14 +156,7 @@ async function run(){
   await typeLine(endText, [{text:"이제 당신도 "}, {glitch:true, len:4}, {text:"를 볼 수 있습니다."}]);
   await sleep(900);
   await typeLine(endText, [{text:"앞으로 만날 기회가 많을 겁니다."}]);
-  await sleep(900);
-  await typeLine(endText, [{text:"고생하셨습니다."}]);
-  await sleep(1700);
-
-  document.getElementById("endTitle").style.opacity=1;
-  await sleep(2000);
-  document.getElementById("endSub").style.opacity=1;
-  await sleep(2600);
+  await sleep(4300);
 
   // 글리치 반짝임 정지, 엔딩 카드 페이드아웃 → 클로드 대화로 전환
   activeGlitchIntervals.forEach(iv=>clearInterval(iv));

@@ -15,7 +15,7 @@
     mix-blend-mode: multiply;
   }
   #dialog {
-    position:fixed; left:50%; bottom:7vh; transform:translateX(-50%);
+    position:fixed; left:50%; bottom:14vh; transform:translateX(-50%);
     max-width:640px; width:calc(100% - 48px);
     padding:18px 26px; z-index:10; display:none;
     font-family:"Courier New", monospace;
@@ -80,9 +80,9 @@ addEventListener("resize", ()=>{
 });
 
 /* ---------- 조명 ---------- */
-const ambientLight = new THREE.AmbientLight(0x0a0a0c, 0.45);
+const ambientLight = new THREE.AmbientLight(0x14141a, 0.75);
 scene.add(ambientLight);
-const flash = new THREE.SpotLight(0xfff2d8, 1.4, 14, Math.PI/8, 0.6, 1.7);
+const flash = new THREE.SpotLight(0xfff2d8, 1.7, 17, Math.PI/7, 0.6, 1.6);
 const flashTarget = new THREE.Object3D();
 scene.add(flash, flashTarget); flash.target = flashTarget;
 
@@ -106,9 +106,9 @@ const T = {
 };
 
 /* ---------- 재질 ---------- */
-const matFloor = new THREE.MeshPhongMaterial({ color:0x141416, shininess:10 });
-const matWall  = new THREE.MeshPhongMaterial({ color:0x1e1e21, shininess:4 });
-const matCeil  = new THREE.MeshPhongMaterial({ color:0x0e0e10, shininess:2 });
+const matFloor = new THREE.MeshPhongMaterial({ color:0xc4c3b9, shininess:60, specular:0xe8e6da });
+const matWall  = new THREE.MeshPhongMaterial({ color:0x3a2416, shininess:9, specular:0x55402a });
+const matCeil  = new THREE.MeshPhongMaterial({ color:0x1c1c20, shininess:2 });
 const matWater = new THREE.MeshPhongMaterial({ color:0x020204, shininess:140, specular:0x223344 });
 const matAlFloor = new THREE.MeshPhongMaterial({ color:0xb7b6ac, shininess:55, specular:0xe8e6da });
 const matVinyl = new THREE.MeshPhongMaterial({ map:T.vinyl,  color:0x555558, shininess:85, specular:0x8a94a0 });
@@ -141,7 +141,7 @@ function box(w,h,d, mat, x,y,z){
 /* 바닥/천장 */
 ROOMS.forEach(r=>{
   const w=r.x2-r.x1, d=r.z2-r.z1, cx=(r.x1+r.x2)/2, cz=(r.z1+r.z2)/2;
-  box(w,0.1,d, (r.id==="AL"||r.id==="CN2")?matAlFloor:matFloor, cx,-0.05,cz);
+  box(w,0.1,d, matFloor, cx,-0.05,cz);
   box(w,0.1,d, matCeil, cx, CEIL_H+0.05, cz);
 });
 /* 벽 (개구부 남기고 수동 배치) */
@@ -411,6 +411,9 @@ document.addEventListener("pointerlockchange", ()=>{
   if(document.pointerLockElement){
     startOverlay.style.display="none";
     if(!started){ started=true; beginScene(); }
+  } else {
+    // ESC 등으로 잠금이 풀렸을 때 — 다시 클릭해서 재진입할 수 있도록 복구
+    startOverlay.style.display="block";
   }
 });
 document.addEventListener("mousemove", e=>{
@@ -619,9 +622,9 @@ function loop(){
 
   // 알코브(트리거 공간) 진입 시 조도 낮춤
   const inAlcove = player.x > 11.6;
-  ambientLight.intensity += ((inAlcove?0.22:0.45) - ambientLight.intensity) * Math.min(1, dt*2);
-  flash.intensity += ((inAlcove?1.0:1.4) - flash.intensity) * Math.min(1, dt*2);
-  flash.distance  += ((inAlcove?8:14)   - flash.distance)  * Math.min(1, dt*2);
+  ambientLight.intensity += ((inAlcove?0.32:0.75) - ambientLight.intensity) * Math.min(1, dt*2);
+  flash.intensity += ((inAlcove?1.2:1.7) - flash.intensity) * Math.min(1, dt*2);
+  flash.distance  += ((inAlcove?9:17)   - flash.distance)  * Math.min(1, dt*2);
 
   if(!controlLocked && !cutscene.active && document.pointerLockElement){
     let mx=0, mz=0;
