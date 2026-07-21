@@ -101,7 +101,7 @@ function notionGag(){
 }
 
 /* ---------- 오늘의 운세 ---------- */
-const F_INTRO = "오하아사, 세계여신타로, 990원 사주해석, 지피티 음양오행으로는 채워지지 않는 부분이 있다.\n결국 가장 신통하다는 오늘의 운세 어플리케이션을 다운 받았다.\n항상 무서운 소리만 한단 말이지… 오늘의 운세를 확인해보자.";
+const F_INTRO = "오하아사, 세계여신타로, 990원 사주해석, 지피티 음양오행, 타로만으로는 채워지지 않는 부분이 있다.\n그런 당신에게 추천하는 '오늘의 운세'.\n먼미래와 과거는 보지 못하지만, 소름끼치도록 정확한 오늘의 운세를 볼 수 있다... 당신의 이름 세 글자 만으로도.";
 const F_MAIN  = "오늘은 예기치못한 손님을 맞이하게 됩니다. 공간을 운영하는 사람이라면 운영 준비에 힘 쓰세요.";
 const F_YUJIN = "오늘은 꿈에 그리던 목표를 이루는 날 입니다. 궁금해하던 얼굴을 확인할 수 있습니다. 가급적 많은 동료들과 함께하세요. 이미 경험해본 것을 경험할 수 있습니다.";
 const F_REJECT= "솔직해지지 못하거나 거짓말을 하면 즐거운 일을 놓치기 쉽습니다. 오늘만큼은 솔직해져 보세요. 특히 이름 세 글자를 제대로 말하지 못할 만큼 솔직해지지 못한다면 앞으로 나아가지 못할 겁니다. 혹시나 이름 세 글자를 모두 밝히는 것에 겁이 난다면 걱정마세요. 아무런 본 이야기는 모두 허구입니다.";
@@ -133,7 +133,8 @@ function submitFortune(){
   const res = document.getElementById("fResult");
   if(!name){ return; }
 
-  if(!firstFortuneDone){
+  if(!playerFull){
+    // 최초 이름 등록 (화이트리스트 검사)
     if(WHITELIST.includes(name)){
       playerFull = name;
       playerName = name.slice(-2);
@@ -150,6 +151,12 @@ function submitFortune(){
         <button class="f-btn" id="fRetry" style="background:#c9b18a">운세 다시 확인하기</button>`;
       document.getElementById("fRetry").addEventListener("click", renderFortune);
     }
+  } else if(name===playerFull && !notifStarted){
+    // 새로고침 등으로 진행이 끊겨 다시 자기 이름을 입력한 경우 → 정상 진행 재개
+    firstFortuneDone = true;
+    const txt = (name==="김유진") ? F_YUJIN : F_MAIN;
+    res.innerHTML = `<div class="fortune-card"><div class="cap">${playerName}님의 오늘</div><div class="txt">${txt}</div></div>`;
+    setTimeout(startNotifications, 4200);
   } else {
     // 이후 재검색
     let txt;
@@ -194,7 +201,10 @@ function startNotifications(){
 }
 
 /* ---------- 슬랙 진입 ---------- */
+let slackEntered = false;
 function enterSlack(){
+  if(slackEntered) return;
+  slackEntered = true;
   if(notifTimer){ clearInterval(notifTimer); notifTimer=null; }
   notifWrap.innerHTML="";
   const ph = document.getElementById("iphone");

@@ -321,6 +321,7 @@ const WHITELIST = ["임새람","이주은","박가연","김아량","황혜지","
 const F_MAIN  = "오늘은 예기치못한 손님을 맞이하게 됩니다. 공간을 운영하는 사람이라면 운영 준비에 힘 쓰세요.";
 const F_YUJIN = "오늘은 꿈에 그리던 목표를 이루는 날 입니다. 궁금해하던 얼굴을 확인할 수 있습니다. 가급적 많은 동료들과 함께하세요. 이미 경험해본 것을 경험할 수 있습니다.";
 const F_AGAIN = "오늘은 대박이 터질 날입니다. 이왕이면 로또 당첨되는 게 좋겠네요. 좋은 하루 되세요!";
+const F_INTRO = "오하아사, 세계여신타로, 990원 사주해석, 지피티 음양오행, 타로만으로는 채워지지 않는 부분이 있다.<br>그런 당신에게 추천하는 '오늘의 운세'.<br>먼미래와 과거는 보지 못하지만, 소름끼치도록 정확한 오늘의 운세를 볼 수 있다... 당신의 이름 세 글자 만으로도.";
 const F_LATER = [
   "누군가 자신의 운세를 궁금해할 하루입니다. 자신의 이름을 검색해봤는데 신기한 결과가 나올 수도 있습니다.",
   "오늘은 어고집밥에 가서 기깔한 한 끼를 할 운명입니다.",
@@ -723,6 +724,7 @@ function renderFortune2(){
   const box = document.getElementById("fortuneBody2");
   const own = (playerFull==="김유진") ? F_YUJIN : F_MAIN;
   box.innerHTML = `
+    <div class="fcard"><div class="ftxt" style="font-size:12px; color:#B98A4E">${F_INTRO}</div></div>
     <div class="fcard"><div class="fcap">${playerName}님의 오늘</div><div class="ftxt">${own}</div></div>
     <div class="fcard">
       <div class="fcap">다른 이름 검색</div>
