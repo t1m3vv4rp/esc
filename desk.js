@@ -533,7 +533,14 @@ function showNvSite(){
   document.getElementById("chromeTabName").textContent="Nostalgia Vista";
   document.getElementById("chromeUrl").textContent="nostalgiavista.com/consult";
 }
-document.getElementById("restoreBtn").addEventListener("click", showNvSite);
+document.getElementById("restoreBtn").addEventListener("click", ()=>{
+  showNvSite();
+  if(!restoreSaidOnce){
+    restoreSaidOnce = true;
+    say("유진님이 접속했던 사이트인가?");
+  }
+});
+let restoreSaidOnce = false;
 function openNvViaChrome(){
   document.getElementById("chromeWin").classList.add("on");
   bringFront("chromeWin");
@@ -541,12 +548,21 @@ function openNvViaChrome(){
 }
 
 /* 탭 전환 */
+let lookupSaidOnce = false;
 document.querySelectorAll(".nv-tab").forEach(t=>{
   t.addEventListener("click", ()=>{
     document.querySelectorAll(".nv-tab").forEach(x=>x.classList.remove("on"));
     document.querySelectorAll(".nv-panel").forEach(x=>x.classList.remove("on"));
     t.classList.add("on");
     document.getElementById(t.dataset.tab==="apply"?"nvApply":"nvLookup").classList.add("on");
+    if(t.dataset.tab==="lookup" && !lookupSaidOnce){
+      lookupSaidOnce = true;
+      say([
+        "예약번호를 알면 좋을텐데...",
+        "지금은 모르겠다.",
+        "검색 기록을 뒤져볼까.",
+      ]);
+    }
   });
 });
 
